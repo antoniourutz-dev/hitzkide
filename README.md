@@ -1,86 +1,125 @@
-# Hitzkideak
+<div align="center">
+  <img width="120" height="120" alt="Hitzkideak Logo" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+  <h1>Hitzkideak</h1>
+  <p>Euskarazko sinonimoen eguneroko jokoa · Basque synonym game</p>
+</div>
 
-Aplicacion web hecha con Vite + React para practicar sinonimos en euskera, cloze tests y conectores discursivos. El frontend consume datos desde Supabase y esta preparada para despliegue estatico en Vercel.
+---
 
-## Stack
+## 📋 Deskribapena · Description
 
-- React 19 + TypeScript
-- Vite 6
-- Tailwind CSS 4
-- Supabase JS 2
-- `vite-plugin-pwa` para instalacion y modo offline
+**Hitzkideak** euskarazko sinonimoak ikasteko eta praktatzeko diseinatutako aplikazio interaktibo bat da. Jokalariek B1, B2, C1 edo C2 mailako hitzak ikasi eta sendotu ditzakete, joko moduan.
 
-## Puesta en marcha local
+**Hitzkideak** is an interactive application designed to learn and practice Basque synonyms. Players can learn and strengthen vocabulary at B1, B2, C1, or C2 levels through gameplay.
 
-### Requisitos
+---
 
-- Node.js 20 o superior
-- Un proyecto de Supabase con las tablas y vistas que usa la app
-
-### Instalacion
+## 🚀 Quick Start
 
 ```bash
 npm install
-```
-
-### Variables de entorno
-
-Crea un archivo `.env.local` con:
-
-```bash
-VITE_SUPABASE_URL=https://your-project-ref.supabase.co
-VITE_SUPABASE_ANON_KEY=your_supabase_publishable_key
-```
-
-La app usa estas variables tanto en local como en despliegue. El archivo `.env.local` no se sube al repositorio.
-
-### Desarrollo
-
-```bash
+cp .env.example .env.local
 npm run dev
 ```
 
-### Verificacion
+`Supabase` konfigurazioa aukerakoa da garapenean: kredentzialik gabe aplikazioa tokiko egoerarekin eta offline moduan abiatu daiteke.
 
-```bash
-npm run typecheck
-npm run build
+---
+
+## ⚙️ Requirements
+
+- **Node.js** 18+
+- **Supabase** backend (optional in local development, required for cloud sync)
+- **Gemini API key** (optional, server-side only)
+
+### Environment Variables
+
+```env
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+# Optional client-side pointer to the deployed proxy
+VITE_GEMINI_PROXY_URL=https://your-project.vercel.app/api/gemini
+
+# Server-side only, configured in Vercel
+GEMINI_API_KEY=your_gemini_api_key
 ```
 
-## Supabase
+### Gemini Proxy
 
-El frontend consulta estos objetos:
+- The client must never embed the Gemini API key.
+- Requests go through `api/gemini` as a Vercel Edge Function.
+- In local development, you can leave `VITE_GEMINI_PROXY_URL` unset and use the same-origin `/api/gemini` route when AI features are wired in.
+- If AI features are not enabled, Gemini variables can be omitted entirely.
 
-- `game_lexical_groups`
-- `lexical_groups`
-- `lexical_words`
-- `lexical_cloze_questions`
-- `discourse_cloze_questions_for_game`
-- `discourse_cloze_options_for_game`
+---
 
-El repositorio solo incluye una migracion incremental en [`migrations/20260426_linguistic_layer.sql`](./migrations/20260426_linguistic_layer.sql). La lista completa de objetos requeridos esta documentada en [`docs/supabase.md`](./docs/supabase.md).
+## 🛠️ Tech Stack
 
-## Despliegue en Vercel
+| Layer | Technology |
+|-------|------------|
+| Frontend | React 19 + TypeScript |
+| Styling | Tailwind CSS 4 |
+| Build | Vite 6 |
+| Backend | Supabase (PostgreSQL + Auth) |
+| PWA | vite-plugin-pwa |
+| Animations | Motion |
+| i18n | Basque (EU) |
 
-1. Importa el repositorio en Vercel.
-2. Configura las variables `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`.
-3. Usa `npm run build` como comando de build.
-4. Usa `dist` como output directory.
+---
 
-El archivo [`vercel.json`](./vercel.json) deja esa configuracion fijada dentro del proyecto.
+## 📁 Project Structure
 
-## GitHub
-
-Remoto previsto:
-
-```bash
-https://github.com/antoniourutz-dev/hitzkide.git
+```
+src/
+├── components/       # Reusable UI components
+├── pages/           # Route pages
+├── services/        # Business logic & API
+├── types/          # TypeScript definitions
+├── hooks/           # Custom React hooks
+├── utils/           # Helper functions
+└── lib/             # Core utilities (supabase, storage, env)
 ```
 
-## Scripts utiles
+---
 
-- `npm run dev`
-- `npm run build`
-- `npm run preview`
-- `npm run typecheck`
-- `npm run clean`
+## 🎮 Features
+
+- **Joko nagusia** - Main game with synonym questions
+- **Saio azkarra** - Quick 5-question session
+- **Errepasoa** - Spaced repetition review
+- **Cloze testak** - Context-based fill-in-the-blank
+- **Antolatzaileak** - Discourse markers (connectors)
+- **Estatistikak** - Progress tracking & analytics
+- **Gogokoak** - Favorite word groups
+- **Mailak** - Level progression (B1 → B2 → C1 → C2 → Aditua)
+- **Cloud sync** - Progress sync via Supabase
+
+---
+
+## 🔧 Available Scripts
+
+```bash
+npm run dev          # Start development server
+npm run build        # Production build
+npm run preview      # Preview production build
+npm run clean        # Remove dist/ in a cross-platform way
+npm run lint         # TypeScript check
+npm run lint:eslint  # ESLint on src/
+npm run test:run     # Run tests once
+```
+
+---
+
+## 📄 License
+
+MIT License - See LICENSE file for details.
+
+---
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run `npm run lint:all` and `npm run test:run`
+5. Submit a pull request

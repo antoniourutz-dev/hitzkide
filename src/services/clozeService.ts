@@ -1,6 +1,27 @@
 import { getSupabase } from '../lib/supabase';
 import { LexicalClozeQuestion, ClozeLevel } from '../types/cloze';
 
+type RawClozeQuestion = Omit<Partial<LexicalClozeQuestion>, 'options'> & {
+  sentence_eu?: string | null;
+  answer?: string | null;
+  options?: string[] | string | null;
+};
+
+const CLOZE_LEVEL_ORDER: ClozeLevel[] = ['B1', 'B2', 'C1', 'C2', 'Aditua'];
+
+function shuffleArray<T>(items: T[]): T[] {
+  return [...items].sort(() => Math.random() - 0.5);
+}
+
+export function getAccessibleClozeLevels(currentLevel: ClozeLevel, mode: 'normal' | 'aditua'): ClozeLevel[] {
+  if (mode === 'aditua') {
+    return ['Aditua'];
+  }
+
+  const currentIndex = CLOZE_LEVEL_ORDER.indexOf(currentLevel);
+  return CLOZE_LEVEL_ORDER.slice(0, currentIndex + 1);
+}
+
 export const clozeService = {
   async fetchClozeQuestions(params: {
     currentLevel: ClozeLevel;
@@ -9,29 +30,40 @@ export const clozeService = {
   }): Promise<LexicalClozeQuestion[]> {
     const supabase = getSupabase();
     if (!supabase) return [];
+    const accessibleLevels = getAccessibleClozeLevels(params.currentLevel, params.mode);
+    const requestedLimit = params.limit || 50;
+    const queryLimit = Math.max(requestedLimit * 4, 50);
 
-    let query = supabase
+    const query = supabase
       .from('lexical_cloze_questions')
       .select('*')
       .eq('is_active', true)
       .neq('risk_level', 'high')
-      .in('quality_level', ['gold', 'platinum']);
+      .in('quality_level', ['gold', 'platinum'])
+      .eq('mode', params.mode)
+      .in('level', accessibleLevels);
 
-    // Level compatibility logic: simplifying complex filtering needs
-    // For now, fetch a good pool and filter in JS if needed,
-    // or use simpler Supabase filters if the schema supports it.
-    
-    const { data, error } = await query.limit(params.limit || 50);
+    const { data, error } = await query.limit(queryLimit);
 
     if (error) {
       console.error('Error fetching cloze questions:', error);
       return [];
     }
 
-    return (data || []).map(this.normalizeClozeQuestion).filter((q): q is LexicalClozeQuestion => !!q);
+    const normalizedQuestions = (data || [])
+      .map(this.normalizeClozeQuestion)
+      .filter((q): q is LexicalClozeQuestion => !!q);
+    const currentLevelQuestions = shuffleArray(
+      normalizedQuestions.filter((question) => question.level === params.currentLevel)
+    );
+    const fallbackQuestions = shuffleArray(
+      normalizedQuestions.filter((question) => question.level !== params.currentLevel)
+    );
+
+    return [...currentLevelQuestions, ...fallbackQuestions].slice(0, requestedLimit);
   },
 
-  normalizeClozeQuestion(raw: any): LexicalClozeQuestion | null {
+  normalizeClozeQuestion(raw: RawClozeQuestion): LexicalClozeQuestion | null {
     if (!raw.sentence_eu || !raw.answer) return null;
 
     let options = Array.isArray(raw.options) ? raw.options : [];
@@ -46,6 +78,15 @@ export const clozeService = {
 
     return {
       ...raw,
+      id: raw.id ?? 0,
+      group_id: raw.group_id ?? null,
+      source_id: raw.source_id ?? null,
+      level: raw.level ?? 'B1',
+      difficulty: raw.difficulty ?? null,
+      mode: raw.mode ?? 'normal',
+      sentence_eu: raw.sentence_eu,
+      answer: raw.answer,
+      is_active: raw.is_active ?? true,
       options,
     };
   },

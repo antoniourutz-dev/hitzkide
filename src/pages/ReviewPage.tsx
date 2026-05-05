@@ -4,12 +4,10 @@ import { fetchGroupsForReview } from '../services/lexicalService';
 import { LexicalGroup } from '../types/lexical';
 import LoadingState from '../components/LoadingState';
 import { getCategoryLabel, getReviewStatusLabel, getGrammarLabel, getFilterLabel, getConceptLabel, getLevelLabel } from '../utils/labels';
+import { useNavigate } from 'react-router-dom';
 
-interface ReviewPageProps {
-  onBack: () => void;
-}
-
-export default function ReviewPage({ onBack }: ReviewPageProps) {
+export default function ReviewPage() {
+  const navigate = useNavigate();
   const [allGroups, setAllGroups] = useState<LexicalGroup[]>([]);
   const [filteredGroups, setFilteredGroups] = useState<LexicalGroup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,7 +61,7 @@ export default function ReviewPage({ onBack }: ReviewPageProps) {
   return (
     <div className="flex flex-col space-y-6">
       <div className="flex items-center space-x-4">
-        <button onClick={onBack} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+        <button onClick={() => navigate('/')} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
           <ArrowLeft size={24} />
         </button>
         <h2 className="text-2xl font-black text-slate-800 tracking-tight">Berrikuspena</h2>

@@ -1,64 +1,83 @@
 import { useState, useEffect } from 'react';
 import { GameQuestion } from '../types/question';
 import { LexicalWord } from '../types/lexical';
-import ProgressBar from '../components/ProgressBar';
 import OptionButton from '../components/OptionButton';
 import FeedbackPanel from '../components/FeedbackPanel';
 import FavoriteButton from '../components/FavoriteButton';
 import { favoritesService } from '../services/favoritesService';
 import { playerService } from '../services/playerService';
-import { getTodayString } from '../utils/date';
 import { motion, AnimatePresence } from 'motion/react';
 import { useLanguagePreference } from '../hooks/useLanguagePreference';
+import { useNavigate, useParams } from 'react-router-dom';
 import { X } from 'lucide-react';
+import { AnswerResult } from '../types/stats';
 
 interface DailyGamePageProps {
-  questions: GameQuestion[];
-  onFinish: (score: number, answers: any[]) => void;
-  onQuit: () => void;
   onToast: (message: string, type?: 'success' | 'info' | 'warning' | 'achievement') => void;
 }
 
-export default function DailyGamePage({ questions, onFinish, onQuit, onToast }: DailyGamePageProps) {
+export default function DailyGamePage({ onToast }: DailyGamePageProps) {
+  const { mode } = useParams<{ mode: string }>();
+  const navigate = useNavigate();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedWord, setSelectedWord] = useState<LexicalWord | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);
   const [score, setScore] = useState(0);
-  const [answers, setAnswers] = useState<any[]>([]);
+  const [answers, setAnswers] = useState<AnswerResult[]>([]);
   const [isFavorite, setIsFavorite] = useState(false);
   const [sessionStreak, setSessionStreak] = useState(0);
   const [languagePreference] = useLanguagePreference();
+  const [questions, setQuestions] = useState<GameQuestion[]>([]);
+
+  useEffect(() => {
+    const stored = sessionStorage.getItem('hitzkideak_questions');
+    if (stored) {
+      setQuestions(JSON.parse(stored));
+    } else {
+      navigate('/');
+    }
+  }, [navigate]);
 
   const currentQuestion = questions[currentIndex];
   const profile = playerService.getProfile();
 
   useEffect(() => {
-    setIsFavorite(favoritesService.isFavorite(currentQuestion.groupId));
-  }, [currentIndex, currentQuestion.groupId]);
+    if (currentQuestion) {
+      setIsFavorite(favoritesService.isFavorite(currentQuestion.groupId));
+    }
+  }, [currentIndex, currentQuestion]);
 
   const handleSelect = (word: LexicalWord) => {
-    if (isAnswered) return;
-    
+    if (isAnswered || !currentQuestion) return;
+
     setSelectedWord(word);
     setIsAnswered(true);
-    
+
     const isCorrect = word.id === currentQuestion.correctWord.id;
     if (isCorrect) {
       setScore(s => s + 1);
       const newStreak = sessionStreak + 1;
       setSessionStreak(newStreak);
       if (newStreak === 5) {
-        onToast('🔥 5 jarraian zuzen!', 'achievement');
+        onToast('5 jarraian zuzen!', 'achievement');
       }
     } else {
       setSessionStreak(0);
     }
-    
-    setAnswers(prev => [...prev, {
+
+    const answer: AnswerResult = {
       questionId: currentQuestion.id,
+      groupId: currentQuestion.groupId,
+      promptWordId: currentQuestion.promptWord.id,
+      correctWordId: currentQuestion.correctWord.id,
+      correctAnswer: currentQuestion.correctWord.word,
       selectedOptionId: word.id,
-      isCorrect
-    }]);
+      isCorrect,
+      answeredAt: new Date().toISOString(),
+      level: profile.currentLevel,
+      questionType: currentQuestion.questionType
+    };
+    setAnswers(prev => [...prev, answer]);
   };
 
   const handleNext = () => {
@@ -67,11 +86,18 @@ export default function DailyGamePage({ questions, onFinish, onQuit, onToast }: 
       setIsAnswered(false);
       setSelectedWord(null);
     } else {
-      onFinish(score, answers);
+      sessionStorage.setItem('hitzkideak_result', JSON.stringify({ score, answers, questions, mode }));
+      navigate('/results');
     }
   };
 
+  const handleQuit = () => {
+    sessionStorage.removeItem('hitzkideak_questions');
+    navigate('/');
+  };
+
   const toggleFav = () => {
+    if (!currentQuestion) return;
     favoritesService.toggleFavorite({
       id: currentQuestion.groupId,
       source_id: currentQuestion.sourceId,
@@ -90,9 +116,16 @@ export default function DailyGamePage({ questions, onFinish, onQuit, onToast }: 
     setIsFavorite(!isFavorite);
   };
 
+  if (!currentQuestion) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full space-y-6">
-      {/* Session Top Bar */}
       <div className="space-y-3">
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
@@ -101,13 +134,13 @@ export default function DailyGamePage({ questions, onFinish, onQuit, onToast }: 
           </div>
           <div className="flex items-center gap-3">
             <FavoriteButton isFavorite={isFavorite} onClick={toggleFav} />
-            <button onClick={onQuit} className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
+            <button onClick={handleQuit} className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
               <X size={20} />
             </button>
           </div>
         </div>
         <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
-          <motion.div 
+          <motion.div
             initial={{ width: 0 }}
             animate={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
             className="h-full bg-emerald-500 rounded-full"
@@ -116,7 +149,7 @@ export default function DailyGamePage({ questions, onFinish, onQuit, onToast }: 
       </div>
 
       <AnimatePresence mode="wait">
-        <motion.div 
+        <motion.div
           key={currentIndex}
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -152,7 +185,7 @@ export default function DailyGamePage({ questions, onFinish, onQuit, onToast }: 
                   onClick={() => handleSelect(option)}
                   disabled={isAnswered}
                   status={
-                    isAnswered 
+                    isAnswered
                       ? (option.id === currentQuestion.correctWord.id ? 'correct' : (selectedWord?.id === option.id ? 'incorrect' : 'neutral'))
                       : 'neutral'
                   }
@@ -162,7 +195,7 @@ export default function DailyGamePage({ questions, onFinish, onQuit, onToast }: 
           </div>
 
           {isAnswered && (
-            <FeedbackPanel 
+            <FeedbackPanel
               isCorrect={selectedWord?.id === currentQuestion.correctWord.id}
               explanationShort={currentQuestion.explanationShort}
               explanationLong={currentQuestion.explanationLong}

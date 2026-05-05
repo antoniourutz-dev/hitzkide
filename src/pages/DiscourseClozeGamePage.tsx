@@ -1,26 +1,25 @@
 import { useState, useEffect } from 'react';
-import { DiscourseClozeSession, DiscourseClozeQuestion, DiscourseClozeOptionExplanation } from '../types/discourseCloze';
+import { DiscourseClozeSession, DiscourseClozeOptionExplanation, DiscourseClozeAnswerResult } from '../types/discourseCloze';
 import { discourseClozeService } from '../services/discourseClozeService';
 import DiscourseClozeQuestionCard from '../components/discourseCloze/DiscourseClozeQuestionCard';
 import DiscourseClozeExplanationCard from '../components/discourseCloze/DiscourseClozeExplanationCard';
 import { useLanguagePreference } from '../hooks/useLanguagePreference';
 import { playerService } from '../services/playerService';
 import { RefreshCw, X } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
 
-interface DiscourseClozeGamePageProps {
-  sessionSize: number;
-  mode?: 'aditua' | 'review' | 'normal';
-  onFinish: (session: DiscourseClozeSession) => void;
-  onBack: () => void;
-  onGoToSynonyms: () => void;
-}
+export default function DiscourseClozeGamePage() {
+  const { size, mode } = useParams<{ size: string; mode: string }>();
+  const navigate = useNavigate();
+  const sessionSize = parseInt(size || '5', 10);
+  const sessionMode = mode as 'aditua' | 'review' | 'normal' | undefined;
 
-export default function DiscourseClozeGamePage({ sessionSize, mode, onFinish, onBack, onGoToSynonyms }: DiscourseClozeGamePageProps) {
   const [session, setSession] = useState<DiscourseClozeSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAnswered, setIsAnswered] = useState(false);
+  const [currentAnswer, setCurrentAnswer] = useState<DiscourseClozeAnswerResult | null>(null);
   const [optionExplanations, setOptionExplanations] = useState<DiscourseClozeOptionExplanation[]>([]);
   const [languagePreference] = useLanguagePreference();
 
@@ -28,7 +27,7 @@ export default function DiscourseClozeGamePage({ sessionSize, mode, onFinish, on
 
   useEffect(() => {
     let mounted = true;
-    
+
     const initSession = async () => {
       try {
         const recentlySeenIds = Object.values(profile.discourseClozeMastery || {})
@@ -37,7 +36,7 @@ export default function DiscourseClozeGamePage({ sessionSize, mode, onFinish, on
            .map(m => m.questionId);
 
         let newSession;
-        if (mode === 'review') {
+        if (sessionMode === 'review') {
            newSession = await discourseClozeService.buildDiscourseReviewSession(profile, {
              currentLevel: profile.currentLevel,
              unlockedLevels: profile.unlockedLevels,
@@ -48,7 +47,7 @@ export default function DiscourseClozeGamePage({ sessionSize, mode, onFinish, on
              currentLevel: profile.currentLevel,
              unlockedLevels: profile.unlockedLevels,
              sessionSize: sessionSize as 5|10|15,
-             mode: mode as any,
+             mode: sessionMode || 'normal',
              recentlySeenQuestionIds: recentlySeenIds
            });
         }
@@ -73,7 +72,12 @@ export default function DiscourseClozeGamePage({ sessionSize, mode, onFinish, on
     initSession();
 
     return () => { mounted = false; };
-  }, []);
+  }, [sessionSize, sessionMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleFinish = (finalSession: DiscourseClozeSession) => {
+    sessionStorage.setItem('hitzkideak_discourse_result', JSON.stringify(finalSession));
+    navigate('/discourse/results');
+  };
 
   if (loading) {
       return (
@@ -94,10 +98,10 @@ export default function DiscourseClozeGamePage({ sessionSize, mode, onFinish, on
                   <button onClick={() => window.location.reload()} className="w-full py-4 bg-white text-slate-800 font-black rounded-2xl border border-slate-200">
                       Berriro saiatu
                   </button>
-                  <button onClick={onGoToSynonyms} className="w-full py-4 bg-emerald-50 text-emerald-700 font-black rounded-2xl border border-emerald-200">
+                  <button onClick={() => navigate('/')} className="w-full py-4 bg-emerald-50 text-emerald-700 font-black rounded-2xl border border-emerald-200">
                       Sinonimoak landu
                   </button>
-                  <button onClick={onBack} className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl">
+                  <button onClick={() => navigate('/discourse')} className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl">
                       Hasierara itzuli
                   </button>
               </div>
@@ -106,30 +110,28 @@ export default function DiscourseClozeGamePage({ sessionSize, mode, onFinish, on
   }
 
   const currentQuestion = session.questions[currentIndex];
-  // Reconstruct answers nicely
-  const currentAnswer = session.answers.find(a => a.questionId === currentQuestion.id);
+  const persistedCurrentAnswer = session.answers.find((answer) => answer.questionId === currentQuestion.id);
+  const resolvedCurrentAnswer = currentAnswer || persistedCurrentAnswer || null;
 
   const handleAnswer = async (selectedAnswer: string) => {
-      // 1. Process Answer
       const result = discourseClozeService.checkDiscourseClozeAnswer(currentQuestion, selectedAnswer);
-      
-      const newAnswers = [...session.answers, result];
-      const newScore = newAnswers.filter(a => a.isCorrect).length;
-      
-      const updatedSession = { ...session, answers: newAnswers, score: newScore };
-      setSession(updatedSession);
+
+      const existingAnswers = session.answers.filter((answer) => answer.questionId !== currentQuestion.id);
+      const newAnswers = [...existingAnswers, result];
+      const newScore = newAnswers.filter((answer) => answer.isCorrect).length;
+
+      setSession({ ...session, answers: newAnswers, score: newScore });
+      setCurrentAnswer(result);
       setIsAnswered(true);
 
-      // 2. Fetch Explanations
       const explanations = await discourseClozeService.fetchDiscourseOptionExplanations(currentQuestion.id);
       setOptionExplanations(explanations);
 
-      // 3. Update Mastery
       playerService.updateDiscourseClozeMastery(
-          currentQuestion.id, 
-          result.isCorrect, 
-          currentQuestion.level, 
-          currentQuestion.skill_focus, 
+          currentQuestion.id,
+          result.isCorrect,
+          currentQuestion.level,
+          currentQuestion.skill_focus,
           currentQuestion.discursive_function
       );
   };
@@ -138,12 +140,21 @@ export default function DiscourseClozeGamePage({ sessionSize, mode, onFinish, on
       if (currentIndex < session.questions.length - 1) {
           setCurrentIndex(currentIndex + 1);
           setIsAnswered(false);
+          setCurrentAnswer(null);
           setOptionExplanations([]);
       } else {
-          // Finish Session
-          const finalSession = { ...session, completed: true, finishedAt: new Date().toISOString() };
+          const finalAnswers = resolvedCurrentAnswer && !session.answers.some((answer) => answer.questionId === resolvedCurrentAnswer.questionId)
+            ? [...session.answers, resolvedCurrentAnswer]
+            : session.answers;
+          const finalSession = {
+            ...session,
+            answers: finalAnswers,
+            score: finalAnswers.filter((answer) => answer.isCorrect).length,
+            completed: true,
+            finishedAt: new Date().toISOString(),
+          };
           playerService.saveDiscourseClozeSession(finalSession);
-          onFinish(finalSession);
+          handleFinish(finalSession);
       }
   };
 
@@ -154,23 +165,23 @@ export default function DiscourseClozeGamePage({ sessionSize, mode, onFinish, on
             <span className="text-slate-800 text-lg">Antolatzaileak</span>
             <span>{currentIndex + 1} / {session.total}</span>
           </div>
-          <button onClick={onBack} className="p-2 -mr-2 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
+          <button onClick={() => navigate('/discourse')} className="p-2 -mr-2 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
               <X size={24} />
           </button>
       </div>
 
-      <DiscourseClozeQuestionCard 
-        question={currentQuestion} 
-        onAnswer={handleAnswer} 
-        selectedAnswer={isAnswered ? currentAnswer?.selectedAnswer : null}
+      <DiscourseClozeQuestionCard
+        question={currentQuestion}
+        onAnswer={handleAnswer}
+        selectedAnswer={isAnswered ? resolvedCurrentAnswer?.selectedAnswer : null}
         isAnswered={isAnswered}
       />
-      
+
       {isAnswered && (
         <DiscourseClozeExplanationCard
           question={currentQuestion}
-          selectedAnswer={currentAnswer?.selectedAnswer || ''}
-          isCorrect={currentAnswer?.isCorrect || false}
+          selectedAnswer={resolvedCurrentAnswer?.selectedAnswer || ''}
+          isCorrect={resolvedCurrentAnswer?.isCorrect || false}
           optionExplanations={optionExplanations}
           languagePreference={languagePreference}
           onNext={handleNext}

@@ -1,5 +1,13 @@
 import { ClozeSession, ClozeMastery } from './cloze';
 import { DiscourseClozeSession, DiscourseClozeMastery } from './discourseCloze';
+import { GameQuestion } from './question';
+
+export interface StatusChange {
+  groupId: number;
+  concept: string;
+  oldStatus: MasteryStatus;
+  newStatus: MasteryStatus;
+}
 
 export type UserLevel = 'B1' | 'B2' | 'C1' | 'C2' | 'Aditua';
 
@@ -56,19 +64,35 @@ export interface PlayerProfile {
     answeredAt?: string;
   }[]; // For level up checks (last N answers)
   sessions?: SessionResult[];
+  
+  // Sync metadata
+  syncStatus?: 'synced' | 'pending' | 'error';
+  lastLocalUpdateAt?: string;
+  lastCloudSyncAt?: string;
 }
 
-export interface DailyAnswer {
+export interface AnswerResult {
   questionId: string;
-  selectedOptionId: number;
+  groupId: number;
+  promptWordId: number;
+  correctWordId: number;
+  selectedOptionId?: number;
+  selectedAnswer?: string;
+  correctAnswer: string;
   isCorrect: boolean;
+  answeredAt: string;
+  level: UserLevel;
+  questionType: string;
+  playerLevelAtAnswer?: UserLevel;
+  contentLevel?: string | null;
+  selectedWordId?: number;
 }
 
 export interface DayResult {
   date: string;
   score: number;
   total: number;
-  answers: DailyAnswer[];
+  answers: AnswerResult[];
 }
 
 export interface UserStats {
@@ -84,18 +108,13 @@ export interface UserStats {
 export interface SessionResult {
   score: number;
   total: number;
-  questions: any[];
-  answers: any[];
+  questions: GameQuestion[];
+  answers: AnswerResult[];
   level?: UserLevel;
   mode?: string;
   startedAt?: string;
   finishedAt?: string;
-  statusChanges: {
-    groupId: number;
-    concept: string;
-    oldStatus: MasteryStatus;
-    newStatus: MasteryStatus;
-  }[];
+  statusChanges: StatusChange[];
 }
 
 export interface LevelProgress {

@@ -1,6 +1,24 @@
+import { useState, useEffect } from 'react';
 import { ClozeSession } from '../types/cloze';
+import { useNavigate } from 'react-router-dom';
 
-export default function ClozeResultPage({ session, onBack }: { session: ClozeSession, onBack: () => void }) {
+export default function ClozeResultPage() {
+  const navigate = useNavigate();
+  const [session, setSession] = useState<ClozeSession | null>(null);
+
+  useEffect(() => {
+    const stored = sessionStorage.getItem('hitzkideak_cloze_result');
+    if (stored) {
+      setSession(JSON.parse(stored));
+    } else {
+      navigate('/');
+    }
+  }, [navigate]);
+
+  if (!session) {
+    return <div className="p-6">Kargatzen...</div>;
+  }
+
   return (
     <div className="p-6 space-y-6">
       <h2 className="text-2xl font-black">Emaitzak</h2>
@@ -11,9 +29,9 @@ export default function ClozeResultPage({ session, onBack }: { session: ClozeSes
       </div>
 
       <div className="space-y-3">
-        <button className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black">Beste cloze saio bat</button>
-        <button className="w-full py-4 bg-slate-100 text-slate-700 rounded-2xl font-black">Sinonimoetara joan</button>
-        <button onClick={onBack} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black">
+        <button onClick={() => navigate('/cloze')} className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black">Beste cloze saio bat</button>
+        <button onClick={() => navigate('/')} className="w-full py-4 bg-slate-100 text-slate-700 rounded-2xl font-black">Sinonimoetara joan</button>
+        <button onClick={() => navigate('/')} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black">
             Hasierara itzuli
         </button>
       </div>

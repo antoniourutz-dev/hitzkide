@@ -15,15 +15,23 @@ export default function Layout({ children, header, footer }: LayoutProps) {
             {header}
           </header>
         )}
-        
-        <main className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden pt-[calc(60px+env(safe-area-inset-top))] pb-[calc(76px+env(safe-area-inset-bottom))] md:pt-0 md:pb-0">
+
+        <main
+          id="main-content"
+          className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden pt-[calc(60px+env(safe-area-inset-top))] pb-[calc(76px+env(safe-area-inset-bottom))] md:pt-0 md:pb-0"
+          role="main"
+        >
           <div className="mx-auto w-full max-w-2xl h-full flex flex-col p-4 md:p-8">
             {children}
           </div>
         </main>
 
         {footer && (
-          <nav className="fixed bottom-0 left-0 right-0 flex md:hidden bg-white border-t border-slate-100 items-center justify-around px-2 py-3 shrink-0 z-30 pb-[env(safe-area-inset-bottom)]">
+          <nav
+            className="fixed bottom-0 left-0 right-0 flex md:hidden bg-white border-t border-slate-100 items-center justify-around px-2 py-3 shrink-0 z-30 pb-[env(safe-area-inset-bottom)]"
+            role="navigation"
+            aria-label="Nabigazio nagusia"
+          >
             <div className="w-full max-w-md mx-auto flex justify-around">
               {footer}
             </div>

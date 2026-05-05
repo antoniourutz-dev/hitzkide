@@ -1,23 +1,26 @@
-import { Play, TrendingUp, Heart, Settings, BookOpen, ChevronRight, Award, Zap, RefreshCw, List } from 'lucide-react';
+import { Play, TrendingUp, Heart, BookOpen, ChevronRight, Zap, RefreshCw, List } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { fetchGameData } from '../services/lexicalService';
 import { buildSessionQuestions } from '../services/questionService';
 import { playerService } from '../services/playerService';
-import { GameQuestion } from '../types/question';
-import LoadingState from '../components/LoadingState';
 import { useState, useEffect } from 'react';
 import { cn } from '../lib/utils';
 import LevelUpCelebration from '../components/LevelUpCelebration';
+import { ToastData } from '../components/Toast';
+import { User } from '@supabase/supabase-js';
+import { useNavigate } from 'react-router-dom';
+import { authService } from '../services/authService';
 
 interface HomePageProps {
-  onStartGame: (questions: GameQuestion[], mode: string) => void;
-  onNavigate: (page: string) => void;
+  onToast?: (message: string, type?: ToastData['type']) => void;
 }
 
-export default function HomePage({ onStartGame, onNavigate }: HomePageProps) {
+export default function HomePage({ onToast }: HomePageProps) {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [profile, setProfile] = useState(playerService.getProfile());
+  const [user, setUser] = useState<User | null>(null);
   const [showLevelUp, setShowLevelUp] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [notEnoughQuestions, setNotEnoughQuestions] = useState(false);
@@ -28,10 +31,12 @@ export default function HomePage({ onStartGame, onNavigate }: HomePageProps) {
     const handleOffline = () => setIsOnline(false);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    
+
     if (profile.lastLevelUp && !profile.lastLevelUp.seen) {
       setShowLevelUp(true);
     }
+
+    authService.getCurrentUser().then(setUser);
 
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -46,13 +51,13 @@ export default function HomePage({ onStartGame, onNavigate }: HomePageProps) {
     try {
       const allGroups = await fetchGameData();
       if (!allGroups || allGroups.length === 0) {
-        alert('Datuak ezin izan dira kargatu. Mesedez, ziurtatu konexioa ondo dagoela.');
+        onToast?.('Datuak ezin izan dira kargatu. Mesedez, ziurtatu konexioa ondo dagoela.', 'warning');
         setLoading(false);
         return;
       }
-      
-      const { questions, fallbackUsed, generatedCount, requestedCount } = await buildSessionQuestions(allGroups, profile, mode);
-      
+
+      const { questions, generatedCount } = await buildSessionQuestions(allGroups, profile, mode);
+
       let shouldNotStart = false;
       if (mode === 'main' && generatedCount < 3) shouldNotStart = true;
       if (mode === 'quick' && generatedCount < 3) shouldNotStart = true;
@@ -65,17 +70,19 @@ export default function HomePage({ onStartGame, onNavigate }: HomePageProps) {
         if (generatedCount < 5 && (mode === 'main' || mode === 'quick')) {
             setMiniSessionMessage("Saio laburra sortu dugu. Galdera gutxiago, baina erabilgarriak.");
             setTimeout(() => {
-                onStartGame(questions, mode);
+                sessionStorage.setItem('hitzkideak_questions', JSON.stringify(questions));
+                navigate(`/game/${mode}`);
                 setLoading(false);
             }, 2000);
         } else {
-            onStartGame(questions, mode);
+            sessionStorage.setItem('hitzkideak_questions', JSON.stringify(questions));
+            navigate(`/game/${mode}`);
             setLoading(false);
         }
       }
     } catch (error) {
       console.error('Error starting game:', error);
-      alert('Akats bat gertatu da jokoa kargatzean.');
+      onToast?.('Akats bat gertatu da jokoa kargatzean.', 'warning');
     } finally {
       setLoading(false);
     }
@@ -151,7 +158,26 @@ export default function HomePage({ onStartGame, onNavigate }: HomePageProps) {
           </motion.div>
         )}
       </AnimatePresence>
-      {/* Title removed, included in header */}
+      
+      {/* User Greeting Mini-Badge */}
+      <div className="flex justify-between items-center px-1">
+         <div className="flex flex-col">
+            <span className="text-xl font-black text-slate-800 tracking-tight">
+               {user ? `Kaixo, ${user.user_metadata?.username || user.user_metadata?.display_name || 'Erabiltzaile'}` : 'Kaixo, Gonbidatua'}
+            </span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 flex items-center gap-1">
+               {user && profile.syncStatus === 'synced' ? (
+                 <><div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div> Sinkronizatuta</>
+               ) : user && profile.syncStatus === 'pending' ? (
+                 <><div className="w-1.5 h-1.5 rounded-full bg-sky-500"></div> Sinkronizatzeko zain</>
+               ) : user && profile.syncStatus === 'error' ? (
+                 <><div className="w-1.5 h-1.5 rounded-full bg-red-500"></div> Sinkronizazio errorea</>
+               ) : (
+                 'Aurrerapena gailu honetan gordeta'
+               )}
+            </span>
+         </div>
+      </div>
 
       {/* Progress Card */}
       <div className="card p-4 bg-white border-slate-100 shadow-sm space-y-3">
@@ -226,7 +252,7 @@ export default function HomePage({ onStartGame, onNavigate }: HomePageProps) {
         </button>
 
         <button
-          onClick={() => onNavigate('cloze')}
+          onClick={() => navigate('/cloze')}
           className="group card flex items-center justify-between p-5 bg-sky-50 border-sky-100 hover:border-sky-300 transition-all active:scale-95 border-dashed"
         >
           <div className="flex items-center space-x-4">
@@ -242,7 +268,7 @@ export default function HomePage({ onStartGame, onNavigate }: HomePageProps) {
         </button>
 
         <button
-          onClick={() => onNavigate('discourse-home')}
+          onClick={() => navigate('/discourse')}
           className="group card flex items-center justify-between p-5 bg-indigo-50 border-indigo-100 hover:border-indigo-300 transition-all active:scale-95 border-dashed mt-4"
         >
           <div className="flex items-center space-x-4">
@@ -287,7 +313,7 @@ export default function HomePage({ onStartGame, onNavigate }: HomePageProps) {
         
         <div className="grid grid-cols-2 gap-3">
           <button
-            onClick={() => onNavigate('review')}
+            onClick={() => navigate('/review')}
             className="card flex flex-col items-center justify-center py-2 bg-slate-50 border-slate-200/50 hover:bg-slate-100 transition-all active:scale-95 h-20 w-full"
           >
             <div className="h-6 flex items-center justify-center">
@@ -297,9 +323,9 @@ export default function HomePage({ onStartGame, onNavigate }: HomePageProps) {
               <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">Hiztegia</span>
             </div>
           </button>
-          
+
           <button
-            onClick={() => onNavigate('stats')}
+            onClick={() => navigate('/stats')}
             className="card flex flex-col items-center justify-center py-2 bg-slate-50 border-slate-200/50 hover:bg-slate-100 transition-all active:scale-95 h-20 w-full"
           >
              <div className="h-6 flex items-center justify-center">
@@ -312,7 +338,7 @@ export default function HomePage({ onStartGame, onNavigate }: HomePageProps) {
         </div>
 
         <button
-          onClick={() => onNavigate('favorites')}
+          onClick={() => navigate('/favorites')}
           className="group card flex items-center justify-between p-5 hover:border-slate-300 transition-all active:scale-95 border-dashed"
         >
           <div className="flex items-center space-x-4">
@@ -333,7 +359,7 @@ export default function HomePage({ onStartGame, onNavigate }: HomePageProps) {
             onClose={handleCloseLevelUp}
             onNavigateStats={() => {
               handleCloseLevelUp();
-              onNavigate('stats');
+              navigate('/stats');
             }}
           />
         )}

@@ -9,31 +9,23 @@ export async function fetchGameData(): Promise<LexicalGroup[]> {
       return [];
     }
 
-    // Try fetching from the requested view first
-    const { data: viewData, error: viewError } = await supabase
-      .from('game_lexical_groups')
-      .select('*');
-
-    if (!viewError && viewData) {
-      return viewData as LexicalGroup[];
-    }
-
-    if (viewError) {
-      console.warn('View game_lexical_groups fetch failed or doesn\'t exist, falling back to basic join:', viewError.message);
-    }
-    
-    const { data: groups, error: groupsError } = await supabase
+    // Try fetching from lexical_groups first
+    const { data: groupsData, error: groupsError } = await supabase
       .from('lexical_groups')
       .select('*, words:lexical_words(*)')
       .eq('is_active', true)
       .in('review_status', ['reviewed_safe', 'reviewed_context_needed', 'reviewed_register_sensitive']);
 
     if (groupsError) {
-      console.error('Error fetching lexical data from fallback tables:', groupsError.message);
+      console.error('Error fetching lexical data:', groupsError.message);
       return [];
     }
 
-    return groups as LexicalGroup[];
+    if (groupsData && groupsData.length > 0) {
+      return groupsData as LexicalGroup[];
+    }
+
+    return [];
   } catch (err) {
     console.error('Unexpected error in fetchGameData:', err);
     return [];

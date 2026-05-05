@@ -1,19 +1,17 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 let supabaseInstance: SupabaseClient | null = null;
-let missingConfigWarningShown = false;
+let hasWarnedMissingConfig = false;
 
 export function getSupabase() {
   if (!supabaseInstance) {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
     if (!supabaseUrl || !supabaseAnonKey) {
-      if (!missingConfigWarningShown) {
-        console.warn(
-          'Supabase configuration missing. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env.local or your deployment environment.',
-        );
-        missingConfigWarningShown = true;
+      if (!hasWarnedMissingConfig) {
+        console.warn('Supabase configuration missing. Running in local/offline mode.');
+        hasWarnedMissingConfig = true;
       }
       return null;
     }

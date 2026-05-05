@@ -1,16 +1,14 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Award, Zap, Target, Star, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Award, Target, Star, ChevronRight, CheckCircle2 } from 'lucide-react';
 import { playerService } from '../services/playerService';
 import { discourseClozeDiagnosisService, getDiscourseFunctionLabelEu } from '../services/discourseClozeDiagnosisService';
 import { fetchGameData } from '../services/lexicalService';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { useNavigate } from 'react-router-dom';
 
-interface StatsPageProps {
-  onBack: () => void;
-}
-
-export default function StatsPage({ onBack }: StatsPageProps) {
+export default function StatsPage() {
+  const navigate = useNavigate();
   const [showRequirements, setShowRequirements] = useState(false);
   const [synonymsPerLevel, setSynonymsPerLevel] = useState<Record<string, number>>({});
   
@@ -39,22 +37,10 @@ export default function StatsPage({ onBack }: StatsPageProps) {
   const reqMastery = progress.missingRequirements.find(r => r.label === 'Ezagutza')?.isMet;
   const knowledgeGap = reqQuestions && reqAccuracy && reqReview && !reqMastery;
 
-  if (import.meta.env.DEV) {
-    const allAnswers = playerService.getAllNormalizedAnswers(profile);
-    console.log("[stats-debug]", {
-      currentLevel: profile.currentLevel,
-      sessions: profile.sessions?.length,
-      recentAnswers: profile.recentAnswers?.length,
-      allAnswers: allAnswers.length,
-      answersForCurrentLevel: allAnswers.filter((a: any) => (a.playerLevelAtAnswer || a.level || profile.currentLevel) === profile.currentLevel).length,
-      levelProgress: progress
-    });
-  }
-
   return (
     <div className="flex flex-col space-y-8 py-2">
       <div className="flex items-center justify-between">
-        <button onClick={onBack} className="p-3 bg-slate-100/50 hover:bg-slate-100 rounded-2xl transition-colors">
+        <button onClick={() => navigate('/')} className="p-3 bg-slate-100/50 hover:bg-slate-100 rounded-2xl transition-colors">
           <ArrowLeft size={20} />
         </button>
         <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Estatistikak</span>
@@ -146,7 +132,7 @@ export default function StatsPage({ onBack }: StatsPageProps) {
           <>
             {/* Diagnosis Card */}
             {(() => {
-                const diagnosis = discourseClozeDiagnosisService.getDiscourseDiagnosis(discourseStats, profile);
+                const diagnosis = discourseClozeDiagnosisService.getDiscourseDiagnosis(discourseStats);
                 const statusColor = diagnosis.globalStatus === 'excellent' || diagnosis.globalStatus === 'strong' ? 'text-emerald-700' :
                                     diagnosis.globalStatus === 'needs_reinforcement' ? 'text-amber-700' : 'text-sky-700';
                 const statusBg = diagnosis.globalStatus === 'excellent' || diagnosis.globalStatus === 'strong' ? 'bg-emerald-50 border-emerald-100' :
@@ -218,7 +204,7 @@ export default function StatsPage({ onBack }: StatsPageProps) {
                        return (
                            <div key={func} className={`flex items-center justify-between p-3 rounded-xl border ${statusBg}`}>
                                <div className="flex flex-col">
-                                   <span className="font-bold text-slate-700">{getDiscourseFunctionLabelEu(func)}</span>
+                                    <span className="font-bold text-slate-700">{getDiscourseFunctionLabelEu(func)}</span>
                                    <span className={`text-[10px] font-black uppercase tracking-wider mt-0.5 ${statusColor}`}>{label}</span>
                                </div>
                                <div className="flex flex-col items-end">

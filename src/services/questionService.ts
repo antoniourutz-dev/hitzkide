@@ -2,7 +2,6 @@ import { LexicalGroup, LexicalWord } from '../types/lexical';
 import { GameQuestion } from '../types/question';
 import { PlayerProfile, UserLevel } from '../types/stats';
 import { isValidGroup, isValidWord } from '../utils/guards';
-import { playerService } from './playerService';
 
 const LEVEL_ORDER: UserLevel[] = ['B1', 'B2', 'C1', 'C2', 'Aditua'];
 
@@ -11,12 +10,26 @@ export const QUICK_SESSION_QUESTION_COUNT = 5;
 export const MIN_NORMAL_SESSION_QUESTIONS = 5;
 
 type SessionMode = 'main' | 'quick' | 'review';
+type DiscardedReason =
+  | 'not_enough_valid_words'
+  | 'already_used_group'
+  | 'already_used_prompt'
+  | 'not_enough_distractors'
+  | 'invalid_question_type';
+
+type SessionBuildResult = {
+  questions: GameQuestion[];
+  requestedCount: number;
+  generatedCount: number;
+  fallbackUsed: boolean;
+  discardedReasons: Record<DiscardedReason, number>;
+};
 
 export async function buildSessionQuestions(
   allGroups: LexicalGroup[],
   profile: PlayerProfile,
   mode: SessionMode = 'main'
-): Promise<{ questions: GameQuestion[], requestedCount: number, generatedCount: number, fallbackUsed: boolean, discardedReasons: any }> {
+): Promise<SessionBuildResult> {
   
   const validGroups = allGroups.filter(g => 
     isValidGroup(g) && 
@@ -29,7 +42,7 @@ export async function buildSessionQuestions(
   const unlockedLevels = LEVEL_ORDER.slice(0, currentLevelIdx + 1);
   const nextLevel = currentLevelIdx < LEVEL_ORDER.length - 1 ? LEVEL_ORDER[currentLevelIdx + 1] : null;
 
-  const discardedReasons: Record<string, number> = {
+  const discardedReasons: Record<DiscardedReason, number> = {
     not_enough_valid_words: 0,
     already_used_group: 0,
     already_used_prompt: 0,
@@ -45,14 +58,6 @@ export async function buildSessionQuestions(
   const requestedCount = mode === 'main' ? MAIN_SESSION_QUESTION_COUNT : QUICK_SESSION_QUESTION_COUNT;
   let targetCount = requestedCount;
   let fallbackUsed = false;
-
-  const progress = playerService.calculateLevelProgress(profile);
-  const reqQuestions = progress.missingRequirements.find(r => r.label === 'Galderak')?.isMet;
-  const reqAccuracy = progress.missingRequirements.find(r => r.label === 'Akurazia')?.isMet;
-  const reqReview = progress.missingRequirements.find(r => r.label === 'Berrikusteko')?.isMet;
-  const reqMastery = progress.missingRequirements.find(r => r.label === 'Ezagutza')?.isMet;
-
-  const knowledgeGap = reqQuestions && reqAccuracy && reqReview && !reqMastery;
 
   // Let's gather pools
   const now = new Date();
@@ -158,7 +163,7 @@ export async function buildSessionQuestions(
       ));
 
     // Step 1: Exact grammar + different group
-    let distractors = allCandidateWords.filter(w => w._groupId !== group.id && w._groupGrammar === group.grammar);
+    const distractors = allCandidateWords.filter(w => w._groupId !== group.id && w._groupGrammar === group.grammar);
     
     // Step 2: Compatible grammar if not enough
     if (distractors.length < 3) {
@@ -269,15 +274,12 @@ export async function buildSessionQuestions(
     }
   };
 
-  let fallbackStep = 0;
-  
   const performPass = (
     pool: LexicalGroup[],
     limit: number,
     allowGroupRepeat: boolean,
     shuffle: boolean
   ) => {
-    fallbackStep++;
     populateFromPool(pool, limit, shuffle, allowGroupRepeat);
   };
 
@@ -321,17 +323,6 @@ export async function buildSessionQuestions(
   const resultQuestions = (mode === 'main' && selectedQuestions.length >= MIN_NORMAL_SESSION_QUESTIONS && selectedQuestions.length < MAIN_SESSION_QUESTION_COUNT)
     ? selectedQuestions.slice(0, MIN_NORMAL_SESSION_QUESTIONS)
     : selectedQuestions.slice(0, targetCount);
-
-  if (import.meta.env.DEV) {
-    console.log("[session-generation]", {
-      mode,
-      requestedCount,
-      generatedCount: resultQuestions.length,
-      fallbackUsed,
-      fallbackStep,
-      discardedReasons
-    });
-  }
 
   return {
     questions: resultQuestions,

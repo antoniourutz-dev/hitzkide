@@ -6,8 +6,40 @@ import {
   DiscourseClozeOptionExplanation,
   DiscourseClozeSession
 } from '../types/discourseCloze';
-
+import { PlayerProfile } from '../types/stats';
 import { playerService } from './playerService';
+
+type RawDiscourseQuestion = Omit<Partial<DiscourseClozeQuestion>, 'options'> & {
+  id?: number | null;
+  sentence_with_blank_eu?: string | null;
+  answer?: string | null;
+  options?: string[] | string | null;
+};
+
+type DiscourseQuestionFetchResult = {
+  questions: DiscourseClozeQuestion[];
+  error?: unknown;
+};
+
+const DISCOURSE_LEVEL_ORDER: DiscourseClozeLevel[] = ['B1', 'B2', 'C1', 'C2', 'Aditua'];
+
+function shuffleArray<T>(items: T[]): T[] {
+  return [...items].sort(() => Math.random() - 0.5);
+}
+
+export function getAccessibleDiscourseLevels(
+  currentLevel: DiscourseClozeLevel,
+  unlockedLevels: DiscourseClozeLevel[]
+): DiscourseClozeLevel[] {
+  const currentIndex = DISCOURSE_LEVEL_ORDER.indexOf(currentLevel);
+  const fallbackLevels = DISCOURSE_LEVEL_ORDER.slice(0, currentIndex + 1);
+  const candidateLevels = unlockedLevels.length > 0 ? unlockedLevels : fallbackLevels;
+
+  return candidateLevels
+    .filter((level): level is DiscourseClozeLevel => DISCOURSE_LEVEL_ORDER.includes(level))
+    .filter((level) => DISCOURSE_LEVEL_ORDER.indexOf(level) <= currentIndex)
+    .sort((left, right) => DISCOURSE_LEVEL_ORDER.indexOf(left) - DISCOURSE_LEVEL_ORDER.indexOf(right));
+}
 
 export const discourseClozeService = {
   normalizeText(value: string): string {
@@ -15,7 +47,7 @@ export const discourseClozeService = {
     return value.trim().toLowerCase().replace(/\s+/g, ' ');
   },
 
-  normalizeDiscourseQuestion(raw: any): DiscourseClozeQuestion | null {
+  normalizeDiscourseQuestion(raw: RawDiscourseQuestion): DiscourseClozeQuestion | null {
     if (!raw.id || !raw.sentence_with_blank_eu || !raw.answer) return null;
 
     let options = Array.isArray(raw.options) ? raw.options : [];
@@ -33,6 +65,24 @@ export const discourseClozeService = {
 
     return {
       ...raw,
+      id: raw.id,
+      passage_id: raw.passage_id ?? null,
+      target_marker_id: raw.target_marker_id ?? null,
+      target_function_id: raw.target_function_id ?? null,
+      level: raw.level ?? 'B1',
+      difficulty: raw.difficulty ?? 'medium',
+      mode: raw.mode ?? 'normal',
+      sentence_eu: raw.sentence_eu ?? raw.sentence_with_blank_eu,
+      sentence_with_blank_eu: raw.sentence_with_blank_eu,
+      answer: raw.answer,
+      normalized_answer: raw.normalized_answer ?? this.normalizeText(raw.answer),
+      discursive_function: raw.discursive_function ?? 'besterik',
+      correct_answer_reason_eu: raw.correct_answer_reason_eu ?? '',
+      skill_focus: raw.skill_focus ?? 'orokorra',
+      quality_level: raw.quality_level ?? 'gold',
+      risk_level: raw.risk_level ?? 'low',
+      review_status: raw.review_status ?? 'reviewed_safe',
+      is_active: raw.is_active ?? true,
       options,
     };
   },
@@ -43,9 +93,12 @@ export const discourseClozeService = {
     mode?: DiscourseClozeMode;
     limit?: number;
     excludeRecentlySeenIds?: number[];
-  }): Promise<{ questions: DiscourseClozeQuestion[], error?: any }> {
+  }): Promise<DiscourseQuestionFetchResult> {
     const supabase = getSupabase();
     if (!supabase) return { questions: [], error: new Error('Supabase client not initialized') };
+    const accessibleLevels = getAccessibleDiscourseLevels(params.currentLevel, params.unlockedLevels);
+    const requestedLimit = params.limit || 50;
+    const queryLimit = Math.max(requestedLimit * 4, 100);
 
     let query = supabase
       .from('discourse_cloze_questions_for_game')
@@ -53,23 +106,41 @@ export const discourseClozeService = {
       .eq('is_active', true)
       .in('quality_level', ['gold', 'platinum'])
       .in('risk_level', ['low', 'medium'])
-      .in('review_status', ['reviewed_safe', 'reviewed_context_needed', 'reviewed_register_sensitive']);
+      .in('review_status', ['reviewed_safe', 'reviewed_context_needed', 'reviewed_register_sensitive'])
+      .in('level', accessibleLevels);
 
     if (params.mode === 'aditua') {
        query = query.eq('mode', 'aditua');
-    } else {
+    } else if (params.mode === 'normal') {
        query = query.eq('mode', 'normal');
     }
 
-    const limit = params.limit || 50;
-    const { data, error } = await query.limit(limit);
+    const { data, error } = await query.limit(queryLimit);
 
     if (error) {
       console.error('Error fetching discourse cloze questions:', error);
       return { questions: [], error };
     }
 
-    const questions = (data || []).map(this.normalizeDiscourseQuestion).filter((q): q is DiscourseClozeQuestion => !!q);
+    let questions: DiscourseClozeQuestion[] = (data || [])
+      .map(this.normalizeDiscourseQuestion)
+      .filter((q): q is DiscourseClozeQuestion => !!q);
+
+    if (params.excludeRecentlySeenIds && params.excludeRecentlySeenIds.length > 0) {
+      const unseenQuestions = questions.filter((question) => !params.excludeRecentlySeenIds!.includes(question.id));
+      if (unseenQuestions.length >= Math.min(requestedLimit, questions.length)) {
+        questions = unseenQuestions;
+      }
+    }
+
+    const currentLevelQuestions = shuffleArray(
+      questions.filter((question) => question.level === params.currentLevel)
+    );
+    const fallbackQuestions = shuffleArray(
+      questions.filter((question) => question.level !== params.currentLevel)
+    );
+
+    questions = [...currentLevelQuestions, ...fallbackQuestions].slice(0, requestedLimit);
     return { questions };
   },
 
@@ -91,7 +162,7 @@ export const discourseClozeService = {
     return data || [];
   },
 
-  async buildDiscourseReviewSession(profile: any, params: {
+  async buildDiscourseReviewSession(profile: PlayerProfile, params: {
     currentLevel: DiscourseClozeLevel;
     unlockedLevels: DiscourseClozeLevel[];
     sessionSize: number;
@@ -129,26 +200,18 @@ export const discourseClozeService = {
     mode?: DiscourseClozeMode;
     recentlySeenQuestionIds?: number[];
   }): Promise<DiscourseClozeSession | null> {
-    const { questions, error } = await this.fetchDiscourseClozeQuestions({
+    const result: DiscourseQuestionFetchResult = await this.fetchDiscourseClozeQuestions({
       currentLevel: params.currentLevel,
       unlockedLevels: params.unlockedLevels,
       mode: params.mode || 'normal',
-      limit: 100
+      limit: 100,
+      excludeRecentlySeenIds: params.recentlySeenQuestionIds
     });
+    const { questions, error } = result;
 
     if (error || questions.length === 0) return null;
 
-    // Filter recently seen if we have enough
-    let pool = questions;
-    if (params.recentlySeenQuestionIds && params.recentlySeenQuestionIds.length > 0) {
-      const filtered = questions.filter(q => !params.recentlySeenQuestionIds!.includes(q.id));
-      if (filtered.length >= params.sessionSize) {
-        pool = filtered;
-      }
-    }
-
-    // Shuffle and pick
-    const selected = pool.sort(() => 0.5 - Math.random()).slice(0, params.sessionSize);
+    const selected: DiscourseClozeQuestion[] = shuffleArray(questions).slice(0, params.sessionSize);
 
     return {
       sessionId: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2),

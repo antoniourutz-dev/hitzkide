@@ -1,17 +1,15 @@
 import { ArrowLeft } from 'lucide-react';
 import { useLanguagePreference, LanguagePreference } from '../hooks/useLanguagePreference';
+import { useNavigate } from 'react-router-dom';
 
-interface SettingsPageProps {
-  onBack: () => void;
-}
-
-export default function SettingsPage({ onBack }: SettingsPageProps) {
+export default function SettingsPage() {
+  const navigate = useNavigate();
   const [language, setLanguage] = useLanguagePreference();
 
   return (
     <div className="flex flex-col space-y-6 p-6">
       <div className="flex items-center space-x-4">
-        <button onClick={onBack} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+        <button onClick={() => navigate('/')} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
           <ArrowLeft size={24} />
         </button>
         <h2 className="text-2xl font-black text-slate-800 tracking-tight">Ezarpenak</h2>
@@ -25,8 +23,8 @@ export default function SettingsPage({ onBack }: SettingsPageProps) {
               key={lang}
               onClick={() => setLanguage(lang)}
               className={`p-4 rounded-2xl font-bold border-2 transition-all ${
-                language === lang 
-                  ? 'border-emerald-500 bg-emerald-50 text-emerald-700' 
+                language === lang
+                  ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
                   : 'border-slate-100 text-slate-600 hover:border-slate-200'
               }`}
             >

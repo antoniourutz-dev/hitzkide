@@ -1,6 +1,4 @@
-import { useState } from 'react';
-import { motion } from 'motion/react';
-import { LexicalWord } from '../types/lexical';
+import { useState, useEffect, useRef, type KeyboardEvent } from 'react';
 import { cn } from '../lib/utils';
 import AnswerExplanationCard from './AnswerExplanationCard';
 import { LanguagePreference } from '../hooks/useLanguagePreference';
@@ -26,8 +24,8 @@ interface FeedbackPanelProps {
   isLast: boolean;
 }
 
-export default function FeedbackPanel({ 
-  isCorrect, 
+export default function FeedbackPanel({
+  isCorrect,
   explanationShort,
   explanationLong,
   usageWarning,
@@ -43,51 +41,76 @@ export default function FeedbackPanel({
   contrastNoteEu,
   teachingTipEu,
   languagePreference,
-  onNext, 
-  isLast 
+  onNext,
+  isLast
 }: FeedbackPanelProps) {
   const [isExplanationOpen, setIsExplanationOpen] = useState(false);
+  const nextButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    nextButtonRef.current?.focus();
+  }, []);
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onNext();
+    }
+  };
 
   return (
     <div className="flex flex-col flex-1 mt-2 space-y-4">
-      <button 
-        onClick={onNext} 
+      <button
+        ref={nextButtonRef}
+        onClick={onNext}
+        onKeyDown={handleKeyDown}
         className={cn(
           "w-full h-16 rounded-3xl font-black text-lg transition-all active:scale-98 shadow-lg",
-          isCorrect 
-            ? "bg-emerald-500 text-white shadow-emerald-100" 
+          isCorrect
+            ? "bg-emerald-500 text-white shadow-emerald-100"
             : "bg-slate-800 text-white shadow-slate-200"
         )}
+        aria-label={isLast ? "Emaitza ikusi" : "Jarraitu hurrengo galderara"}
       >
         {isLast ? "Emaitza ikusi" : "Jarraitu"}
       </button>
 
       <button
         onClick={() => setIsExplanationOpen(!isExplanationOpen)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setIsExplanationOpen(!isExplanationOpen);
+          }
+        }}
         className="w-full text-center text-xs font-black text-slate-400 uppercase tracking-widest py-2 active:bg-slate-50 transition-colors"
+        aria-expanded={isExplanationOpen}
+        aria-controls="explanation-content"
       >
         {isExplanationOpen ? "Ezkutatu azalpena" : "Azalpena ikusi"}
       </button>
 
       {isExplanationOpen && (
-        <AnswerExplanationCard
-          isCorrect={isCorrect}
-          explanationShort={explanationShort}
-          explanationLong={explanationLong}
-          usageWarning={usageWarning}
-          goodExample={goodExample}
-          badExample={badExample}
-          contrastNote={contrastNote}
-          teachingTip={teachingTip}
-          explanationShortEu={explanationShortEu}
-          explanationLongEu={explanationLongEu}
-          usageWarningEu={usageWarningEu}
-          goodExampleEu={goodExampleEu}
-          badExampleEu={badExampleEu}
-          contrastNoteEu={contrastNoteEu}
-          teachingTipEu={teachingTipEu}
-          languagePreference={languagePreference}
-        />
+        <div id="explanation-content" role="region" aria-label="Azalpena">
+          <AnswerExplanationCard
+            isCorrect={isCorrect}
+            explanationShort={explanationShort}
+            explanationLong={explanationLong}
+            usageWarning={usageWarning}
+            goodExample={goodExample}
+            badExample={badExample}
+            contrastNote={contrastNote}
+            teachingTip={teachingTip}
+            explanationShortEu={explanationShortEu}
+            explanationLongEu={explanationLongEu}
+            usageWarningEu={usageWarningEu}
+            goodExampleEu={goodExampleEu}
+            badExampleEu={badExampleEu}
+            contrastNoteEu={contrastNoteEu}
+            teachingTipEu={teachingTipEu}
+            languagePreference={languagePreference}
+          />
+        </div>
       )}
 
       <div className="flex-grow" />

@@ -69,7 +69,9 @@ export default function AnswerExplanationCard({
         {good && (
           <div className="space-y-1">
             <p className="text-xs font-black text-slate-400 uppercase tracking-widest">{isEu ? 'Adibidea' : 'Adibidea'}</p>
-            <p className="text-slate-800 font-bold italic bg-white p-3 rounded-xl border border-slate-200">"{good}"</p>
+            <p className="text-slate-800 font-bold italic bg-white p-3 rounded-xl border border-slate-200">
+              <span>&ldquo;{good}&rdquo;</span>
+            </p>
           </div>
         )}
         {isExpanded && (
@@ -85,7 +87,9 @@ export default function AnswerExplanationCard({
             {bad && (
               <div className="space-y-1">
                 <p className="text-xs font-black text-slate-400 uppercase tracking-widest">{isEu ? 'Adibide okerra' : 'Adibide okerra'}</p>
-                <p className="text-slate-500 font-medium italic bg-white p-3 rounded-xl border border-slate-200 line-through">"{bad}"</p>
+                <p className="text-slate-500 font-medium italic bg-white p-3 rounded-xl border border-slate-200 line-through">
+                  <span>&ldquo;{bad}&rdquo;</span>
+                </p>
               </div>
             )}
           </div>

@@ -1,31 +1,27 @@
 import { ArrowLeft, BarChart2, RefreshCw } from 'lucide-react';
 import { playerService } from '../services/playerService';
-import { discourseClozeDiagnosisService, getDiscourseFunctionLabelEu } from '../services/discourseClozeDiagnosisService';
+import { discourseClozeDiagnosisService } from '../services/discourseClozeDiagnosisService';
+import { useNavigate } from 'react-router-dom';
 
-interface DiscourseClozeHomePageProps {
-  onBack: () => void;
-  onStart: (size: number, mode?: 'aditua' | 'review') => void;
-  onStats: () => void;
-  isAdituaUnlocked: boolean;
-  reviewCount?: number;
-}
-
-export default function DiscourseClozeHomePage({ onBack, onStart, onStats, isAdituaUnlocked, reviewCount = 0 }: DiscourseClozeHomePageProps) {
+export default function DiscourseClozeHomePage() {
+  const navigate = useNavigate();
   const profile = playerService.getProfile();
   const stats = playerService.getDiscourseClozeStats(profile);
-  const diagnosis = discourseClozeDiagnosisService.getDiscourseDiagnosis(stats, profile);
+  const diagnosis = discourseClozeDiagnosisService.getDiscourseDiagnosis(stats);
+  const reviewCount = stats.questionsToReview;
+  const isAdituaUnlocked = profile.unlockedLevels.includes('Aditua');
 
   return (
     <div className="p-6 space-y-6 pb-20">
       <div className="flex justify-between items-center">
-        <button onClick={onBack} className="p-2 -ml-2 text-slate-400 hover:text-slate-600">
+        <button onClick={() => navigate('/')} className="p-2 -ml-2 text-slate-400 hover:text-slate-600">
           <ArrowLeft />
         </button>
-        <button onClick={onStats} className="p-2 text-slate-400 hover:text-sky-500">
+        <button onClick={() => navigate('/stats')} className="p-2 text-slate-400 hover:text-sky-500">
           <BarChart2 />
         </button>
       </div>
-      
+
       <div className="space-y-2">
           <h2 className="text-3xl font-black text-slate-800 tracking-tight">Antolatzaileak</h2>
           <p className="font-bold text-sky-600">Testua lotu, ideiak antolatu eta ñabardurak landu</p>
@@ -59,27 +55,27 @@ export default function DiscourseClozeHomePage({ onBack, onStart, onStats, isAdi
                   </div>
               )}
           </div>
-          
+
           <div className="flex gap-2">
-              <button onClick={onStats} className="flex-1 py-2 bg-slate-50 text-slate-600 rounded-xl text-xs font-black shadow-sm border border-slate-200">
+              <button onClick={() => navigate('/stats')} className="flex-1 py-2 bg-slate-50 text-slate-600 rounded-xl text-xs font-black shadow-sm border border-slate-200">
                   Estatistikak
               </button>
               {reviewCount > 0 && (
-                  <button onClick={() => onStart(10, 'review')} className="flex-1 py-2 bg-orange-50 text-orange-600 rounded-xl text-xs font-black shadow-sm border border-orange-200 flex items-center justify-center gap-1">
+                  <button onClick={() => navigate(`/discourse/10/review`)} className="flex-1 py-2 bg-orange-50 text-orange-600 rounded-xl text-xs font-black shadow-sm border border-orange-200 flex items-center justify-center gap-1">
                       <RefreshCw size={14} /> Errepasatu
                   </button>
               )}
           </div>
       </div>
-      
+
       <p className="text-slate-600 leading-relaxed text-sm">
         Aukeratu testuinguruan egokiena den lokailua edo testu-antolatzailea. Ikasi zergatik den egokia eta zergatik ez diren beste aukerak hain zehatzak.
       </p>
 
       <div className="grid gap-3 pt-4">
         {reviewCount > 0 && (
-          <button 
-             onClick={() => onStart(10, 'review')}
+          <button
+             onClick={() => navigate('/discourse/10/review')}
              className="relative flex flex-col items-start p-4 bg-orange-50 border border-orange-200 hover:border-orange-400 active:scale-95 rounded-2xl transition-all shadow-sm"
           >
              <div className="absolute top-4 right-4 text-orange-400">
@@ -91,9 +87,9 @@ export default function DiscourseClozeHomePage({ onBack, onStart, onStats, isAdi
         )}
 
         {[5, 10, 15].map(size => (
-          <button 
-             key={size} 
-             onClick={() => onStart(size)} 
+          <button
+             key={size}
+             onClick={() => navigate(`/discourse/${size}/normal`)}
              className="flex flex-col items-start p-4 bg-white border border-slate-200 hover:border-sky-300 hover:bg-sky-50 rounded-2xl transition-all shadow-sm active:scale-95"
           >
             <span className="font-black text-slate-800">
@@ -103,12 +99,12 @@ export default function DiscourseClozeHomePage({ onBack, onStart, onStats, isAdi
           </button>
         ))}
 
-        <button 
+        <button
            disabled={!isAdituaUnlocked}
-           onClick={() => isAdituaUnlocked && onStart(10, 'aditua')}
+           onClick={() => isAdituaUnlocked && navigate('/discourse/10/aditua')}
            className={`flex flex-col items-start p-4 rounded-2xl transition-all shadow-sm border ${
-             isAdituaUnlocked 
-                ? "bg-emerald-50 border-emerald-200 hover:border-emerald-400 active:scale-95" 
+             isAdituaUnlocked
+                ? "bg-emerald-50 border-emerald-200 hover:border-emerald-400 active:scale-95"
                 : "bg-slate-50 border-slate-100 opacity-70"
            }`}
         >
@@ -119,7 +115,7 @@ export default function DiscourseClozeHomePage({ onBack, onStart, onStats, isAdi
         </button>
       </div>
 
-      <button onClick={onStats} className="w-full mt-4 flex items-center justify-center gap-2 p-4 bg-slate-100 text-slate-700 font-black rounded-2xl hover:bg-slate-200 transition-colors">
+      <button onClick={() => navigate('/stats')} className="w-full mt-4 flex items-center justify-center gap-2 p-4 bg-slate-100 text-slate-700 font-black rounded-2xl hover:bg-slate-200 transition-colors">
           <BarChart2 size={20} />
           Estatistikak ikusi
       </button>

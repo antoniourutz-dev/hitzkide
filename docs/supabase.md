@@ -11,9 +11,8 @@ La aplicacion ya esta preparada para conectarse a Supabase desde variables de en
 
 - `lexical_groups`
 - `lexical_words`
-- `game_lexical_groups`
 
-La app intenta leer primero la vista `game_lexical_groups`. Si no existe, hace fallback a `lexical_groups` con `lexical_words`.
+La app lee directamente de `lexical_groups` con un join a `lexical_words`.
 
 ### Cloze
 

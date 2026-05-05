@@ -1,7 +1,5 @@
-import { useState } from 'react';
 import { cn } from '../../lib/utils';
 import { LexicalClozeQuestion } from '../../types/cloze';
-import { Star } from 'lucide-react';
 
 interface ClozeQuestionCardProps {
   question: LexicalClozeQuestion;

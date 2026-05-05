@@ -1,5 +1,4 @@
 import { DiscourseClozeStats } from '../types/discourseCloze';
-import { PlayerProfile } from '../types/stats';
 
 export interface DiscourseFunctionDiagnosis {
   functionCode: string;
@@ -78,7 +77,7 @@ export function getFunctionRecommendationEu(functionCode: string): string {
 }
 
 export const discourseClozeDiagnosisService = {
-  getDiscourseDiagnosis(stats: DiscourseClozeStats, profile: PlayerProfile): DiscourseDiagnosis {
+  getDiscourseDiagnosis(stats: DiscourseClozeStats): DiscourseDiagnosis {
     const { totalAnswers, accuracy, byDiscursiveFunction } = stats;
     const accPct = accuracy * 100;
 

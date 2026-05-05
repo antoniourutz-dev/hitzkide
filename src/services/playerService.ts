@@ -1,15 +1,32 @@
-import { PlayerProfile, UserLevel, MasteryStatus, ItemMastery, SessionResult } from '../types/stats';
-import { ClozeSession, ClozeMastery } from '../types/cloze';
-import { DiscourseClozeSession, DiscourseClozeMastery } from '../types/discourseCloze';
+import { getSupabase } from '../lib/supabase';
+import { PlayerProfile, UserLevel, MasteryStatus, ItemMastery, SessionResult, AnswerResult, StatusChange } from '../types/stats';
+import { ClozeSession } from '../types/cloze';
+import { DiscourseClozeSession, DiscourseClozeLevel } from '../types/discourseCloze';
 import { GameQuestion } from '../types/question';
 
-const PLAYER_KEY = 'hitzkideak_player_profile';
+type NormalizedAnswer = {
+  isCorrect: boolean;
+  level?: UserLevel;
+  playerLevelAtAnswer?: UserLevel;
+  contentLevel?: string | null;
+  groupId?: number;
+  promptWordId?: number;
+  correctWordId?: number;
+  selectedWordId?: number;
+  answeredAt?: string;
+};
 
-const INITIAL_PROFILE: PlayerProfile = {
-  installationId: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2),
-  currentLevel: 'B1',
-  unlockedLevels: ['B1'],
-  stats: {
+const PLAYER_KEY = 'hitzkideak_player_profile';
+const MAX_RECENT_ANSWERS = 500;
+const MAX_STANDARD_SESSIONS = 120;
+const MAX_CLOZE_SESSIONS = 120;
+const MAX_DISCOURSE_SESSIONS = 120;
+
+const LEVEL_ORDER: UserLevel[] = ['B1', 'B2', 'C1', 'C2', 'Aditua'];
+const VALID_LEVELS = new Set<UserLevel>(LEVEL_ORDER);
+
+function createEmptyStats(): PlayerProfile['stats'] {
+  return {
     totalSessions: 0,
     totalQuestions: 0,
     totalCorrect: 0,
@@ -18,16 +35,234 @@ const INITIAL_PROFILE: PlayerProfile = {
     bestStreak: 0,
     lastPlayedDate: null,
     dailySessionsCount: 0
-  },
-  groupMastery: {},
-  wordMastery: {},
-  clozeSessions: [],
-  clozeMastery: {},
-  lastLevelUp: null,
-  recentAnswers: []
-};
+  };
+}
 
-const LEVEL_ORDER: UserLevel[] = ['B1', 'B2', 'C1', 'C2', 'Aditua'];
+function createInitialProfile(): PlayerProfile {
+  return {
+    installationId: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2),
+    currentLevel: 'B1',
+    unlockedLevels: ['B1'],
+    stats: createEmptyStats(),
+    groupMastery: {},
+    wordMastery: {},
+    clozeSessions: [],
+    clozeMastery: {},
+    discourseClozeSessions: [],
+    discourseClozeMastery: {},
+    lastLevelUp: null,
+    recentAnswers: []
+  };
+}
+
+function isValidLevel(level: unknown): level is UserLevel {
+  return typeof level === 'string' && VALID_LEVELS.has(level as UserLevel);
+}
+
+function getLevelRank(level: UserLevel): number {
+  return LEVEL_ORDER.indexOf(level);
+}
+
+function trimToMax<T>(items: T[], max: number): T[] {
+  return items.length <= max ? items : items.slice(-max);
+}
+
+function dedupeBy<T>(items: T[], getKey: (item: T) => string): T[] {
+  const deduped = new Map<string, T>();
+  items.forEach((item) => {
+    deduped.set(getKey(item), item);
+  });
+  return Array.from(deduped.values());
+}
+
+function getSessionTimestamp(session: { finishedAt?: string; startedAt?: string }): string {
+  return session.finishedAt || session.startedAt || '';
+}
+
+function buildRecentAnswerKey(answer: NormalizedAnswer): string {
+  return [
+    answer.answeredAt || '',
+    answer.groupId ?? '',
+    answer.promptWordId ?? '',
+    answer.correctWordId ?? '',
+    answer.selectedWordId ?? '',
+    answer.isCorrect ? '1' : '0',
+    answer.playerLevelAtAnswer || answer.level || ''
+  ].join('|');
+}
+
+function buildStandardSessionKey(session: SessionResult): string {
+  return [
+    getSessionTimestamp(session),
+    session.mode || '',
+    session.score,
+    session.total
+  ].join('|');
+}
+
+function buildClozeSessionKey(session: ClozeSession): string {
+  return session.sessionId || [getSessionTimestamp(session), session.level, session.score, session.total].join('|');
+}
+
+function buildDiscourseSessionKey(session: DiscourseClozeSession): string {
+  return session.sessionId || [getSessionTimestamp(session), session.level, session.score, session.total].join('|');
+}
+
+function compactStandardSession(session: SessionResult): SessionResult {
+  return {
+    ...session,
+    questions: []
+  };
+}
+
+function compactClozeSession(session: ClozeSession): ClozeSession {
+  return {
+    ...session,
+    questions: []
+  };
+}
+
+function compactDiscourseSession(session: DiscourseClozeSession): DiscourseClozeSession {
+  return {
+    ...session,
+    questions: []
+  };
+}
+
+function getUniqueSortedSessionDates(sessions: SessionResult[]): string[] {
+  return Array.from(new Set(
+    sessions
+      .map((session) => getSessionTimestamp(session))
+      .filter(Boolean)
+      .map((timestamp) => timestamp.split('T')[0])
+  )).sort();
+}
+
+function calculateCurrentStreak(sortedDates: string[]): number {
+  if (sortedDates.length === 0) return 0;
+
+  let streak = 1;
+  for (let index = sortedDates.length - 1; index > 0; index -= 1) {
+    const current = new Date(sortedDates[index]);
+    const previous = new Date(sortedDates[index - 1]);
+    const diff = Math.round((current.getTime() - previous.getTime()) / (1000 * 60 * 60 * 24));
+    if (diff === 1) {
+      streak += 1;
+      continue;
+    }
+    break;
+  }
+
+  return streak;
+}
+
+function calculateBestStreak(sortedDates: string[]): number {
+  if (sortedDates.length === 0) return 0;
+
+  let best = 1;
+  let current = 1;
+
+  for (let index = 1; index < sortedDates.length; index += 1) {
+    const date = new Date(sortedDates[index]);
+    const previous = new Date(sortedDates[index - 1]);
+    const diff = Math.round((date.getTime() - previous.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diff === 1) {
+      current += 1;
+      best = Math.max(best, current);
+    } else {
+      current = 1;
+    }
+  }
+
+  return best;
+}
+
+function calculateStatsFromSessions(sessions: SessionResult[]): PlayerProfile['stats'] {
+  if (sessions.length === 0) {
+    return createEmptyStats();
+  }
+
+  const totalSessions = sessions.length;
+  const totalQuestions = sessions.reduce((sum, session) => sum + session.total, 0);
+  const totalCorrect = sessions.reduce((sum, session) => sum + session.score, 0);
+  const sortedDates = getUniqueSortedSessionDates(sessions);
+  const lastPlayedDate = sortedDates.at(-1) || null;
+  const dailySessionsCount = lastPlayedDate
+    ? sessions.filter((session) => getSessionTimestamp(session).startsWith(lastPlayedDate)).length
+    : 0;
+
+  return {
+    totalSessions,
+    totalQuestions,
+    totalCorrect,
+    globalAccuracy: totalQuestions > 0 ? (totalCorrect / totalQuestions) * 100 : 0,
+    currentStreak: calculateCurrentStreak(sortedDates),
+    bestStreak: calculateBestStreak(sortedDates),
+    lastPlayedDate,
+    dailySessionsCount
+  };
+}
+
+function applyRetentionPolicy(profile: PlayerProfile): PlayerProfile {
+  profile.recentAnswers = trimToMax(
+    dedupeBy(profile.recentAnswers || [], buildRecentAnswerKey)
+      .sort((a, b) => (a.answeredAt || '').localeCompare(b.answeredAt || '')),
+    MAX_RECENT_ANSWERS
+  );
+
+  if (profile.sessions) {
+    profile.sessions = trimToMax(
+      dedupeBy(profile.sessions.map(compactStandardSession), buildStandardSessionKey)
+        .sort((a, b) => getSessionTimestamp(a).localeCompare(getSessionTimestamp(b))),
+      MAX_STANDARD_SESSIONS
+    );
+  }
+
+  profile.clozeSessions = trimToMax(
+    dedupeBy((profile.clozeSessions || []).map(compactClozeSession), buildClozeSessionKey)
+      .sort((a, b) => getSessionTimestamp(a).localeCompare(getSessionTimestamp(b))),
+    MAX_CLOZE_SESSIONS
+  );
+
+  profile.discourseClozeSessions = trimToMax(
+    dedupeBy((profile.discourseClozeSessions || []).map(compactDiscourseSession), buildDiscourseSessionKey)
+      .sort((a, b) => getSessionTimestamp(a).localeCompare(getSessionTimestamp(b))),
+    MAX_DISCOURSE_SESSIONS
+  );
+
+  return profile;
+}
+
+function normalizeLoadedProfile(rawProfile: Partial<PlayerProfile> | null | undefined): PlayerProfile {
+  const base = createInitialProfile();
+  const profile: PlayerProfile = {
+    ...base,
+    ...(rawProfile || {}),
+    currentLevel: isValidLevel(rawProfile?.currentLevel) ? rawProfile.currentLevel : base.currentLevel,
+    unlockedLevels: (rawProfile?.unlockedLevels || base.unlockedLevels).filter(isValidLevel),
+    stats: {
+      ...base.stats,
+      ...(rawProfile?.stats || {})
+    },
+    groupMastery: { ...(rawProfile?.groupMastery || {}) },
+    wordMastery: { ...(rawProfile?.wordMastery || {}) },
+    clozeSessions: rawProfile?.clozeSessions ? [...rawProfile.clozeSessions] : [],
+    clozeMastery: { ...(rawProfile?.clozeMastery || {}) },
+    discourseClozeSessions: rawProfile?.discourseClozeSessions ? [...rawProfile.discourseClozeSessions] : [],
+    discourseClozeMastery: { ...(rawProfile?.discourseClozeMastery || {}) },
+    lastLevelUp: rawProfile?.lastLevelUp || null,
+    recentAnswers: rawProfile?.recentAnswers ? [...rawProfile.recentAnswers] : [],
+    sessions: rawProfile?.sessions ? [...rawProfile.sessions] : []
+  };
+
+  if (!profile.unlockedLevels.includes(profile.currentLevel)) {
+    profile.unlockedLevels = Array.from(new Set([...profile.unlockedLevels, profile.currentLevel]))
+      .sort((left, right) => getLevelRank(left) - getLevelRank(right));
+  }
+
+  return applyRetentionPolicy(profile);
+}
 
 const LEVEL_CRITERIA: Record<UserLevel, { 
   questions: number, 
@@ -65,23 +300,16 @@ export const playerService = {
 
   getProfile(): PlayerProfile {
     const saved = localStorage.getItem(PLAYER_KEY);
-    let profile = INITIAL_PROFILE;
+    let profile = createInitialProfile();
     let needsSave = false;
     if (saved) {
       try {
-        profile = JSON.parse(saved);
+        profile = normalizeLoadedProfile(JSON.parse(saved) as Partial<PlayerProfile>);
       } catch {
-        profile = INITIAL_PROFILE;
+        profile = createInitialProfile();
       }
     }
 
-    if (!profile.groupMastery) { profile.groupMastery = {}; needsSave = true; }
-    if (!profile.clozeSessions) { profile.clozeSessions = []; needsSave = true; }
-    if (!profile.clozeMastery) { profile.clozeMastery = {}; needsSave = true; }
-    if (!profile.discourseClozeSessions) { profile.discourseClozeSessions = []; needsSave = true; }
-    if (!profile.discourseClozeMastery) { profile.discourseClozeMastery = {}; needsSave = true; }
-    if (!profile.recentAnswers) { profile.recentAnswers = []; needsSave = true; }
-    
     // Normalize level answers and rebuild if missing from sessions
     if ((!profile.recentAnswers.length && profile.sessions && profile.sessions.length > 0) || 
         (profile.recentAnswers.length > 0 && !profile.recentAnswers[0].playerLevelAtAnswer && !profile.recentAnswers[0].contentLevel)) {
@@ -98,22 +326,24 @@ export const playerService = {
 
   saveClozeSession(session: ClozeSession) {
     const profile = this.getProfile();
-    profile.clozeSessions.push(session);
+    profile.clozeSessions.push(compactClozeSession(session));
     this.saveProfile(profile);
+    this.triggerBackgroundSync();
   },
 
-  saveDiscourseClozeSession(session: any) {
+  saveDiscourseClozeSession(session: DiscourseClozeSession) {
     const profile = this.getProfile();
     if (!profile.discourseClozeSessions) profile.discourseClozeSessions = [];
-    profile.discourseClozeSessions.push(session);
+    profile.discourseClozeSessions.push(compactDiscourseSession(session));
     this.saveProfile(profile);
+    this.triggerBackgroundSync();
   },
 
-  updateDiscourseClozeMastery(questionId: number, isCorrect: boolean, level: any, skillFocus: string, discursiveFunction: string) {
+  updateDiscourseClozeMastery(questionId: number, isCorrect: boolean, level: DiscourseClozeLevel, skillFocus: string, discursiveFunction: string) {
     const profile = this.getProfile();
     if (!profile.discourseClozeMastery) profile.discourseClozeMastery = {};
     
-    let mastery = profile.discourseClozeMastery[questionId] || {
+    const mastery = profile.discourseClozeMastery[questionId] || {
       questionId,
       level,
       skillFocus,
@@ -171,13 +401,13 @@ export const playerService = {
     nextDate.setHours(nextDate.getHours() + nextReviewHours);
     mastery.nextReviewAt = nextDate.toISOString();
 
-    profile.discourseClozeMastery[questionId] = mastery as any;
+    profile.discourseClozeMastery[questionId] = mastery;
     this.saveProfile(profile);
   },
 
   updateClozeMastery(questionId: number, isCorrect: boolean, level: UserLevel) {
     const profile = this.getProfile();
-    let mastery = profile.clozeMastery[questionId] || {
+    const mastery = profile.clozeMastery[questionId] || {
       questionId,
       level,
       timesSeen: 0,
@@ -227,13 +457,23 @@ export const playerService = {
     this.saveProfile(profile);
   },
 
-  saveProfile(profile: PlayerProfile) {
+  saveProfile(profile: PlayerProfile, options?: { markPending?: boolean }) {
+    profile.lastLocalUpdateAt = new Date().toISOString();
+    if (options?.markPending !== false) {
+      profile.syncStatus = 'pending';
+    }
+    applyRetentionPolicy(profile);
     localStorage.setItem(PLAYER_KEY, JSON.stringify(profile));
   },
 
-  updateSession(score: number, questions: GameQuestion[], answers: any[], mode: string = 'main'): SessionResult {
+  async triggerBackgroundSync() {
     const profile = this.getProfile();
-    const statusChanges: any[] = [];
+    await this.syncProgressToCloud(profile);
+  },
+
+  updateSession(score: number, questions: GameQuestion[], answers: AnswerResult[], mode: string = 'main'): SessionResult {
+    const profile = this.getProfile();
+    const statusChanges: StatusChange[] = [];
     const now = new Date().toISOString();
 
     profile.stats.totalSessions += 1;
@@ -264,7 +504,7 @@ export const playerService = {
     profile.stats.bestStreak = Math.max(profile.stats.bestStreak, profile.stats.currentStreak);
 
     // Update Mastery for each question
-    questions.forEach((q, idx) => {
+    questions.forEach((q) => {
       const answer = answers.find(a => a.questionId === q.id);
       const isCorrect = answer?.isCorrect || false;
 
@@ -320,9 +560,10 @@ export const playerService = {
     };
 
     if (!profile.sessions) profile.sessions = [];
-    profile.sessions.push(sessionResult);
+    profile.sessions.push(compactStandardSession(sessionResult));
 
     this.saveProfile(profile);
+    this.triggerBackgroundSync();
 
     return sessionResult;
   },
@@ -402,7 +643,7 @@ export const playerService = {
 
     // Filter recent answers for the current level
     const allAnswers = this.getAllNormalizedAnswers(profile);
-    const levelAnswers = allAnswers.filter((a: any) => {
+    const levelAnswers = allAnswers.filter((a) => {
       const answerLevel = a.playerLevelAtAnswer || a.level || profile.currentLevel;
       return answerLevel === profile.currentLevel;
     });
@@ -482,12 +723,12 @@ export const playerService = {
 
     // 2. If recentAnswers is empty but sessions exist, try to rebuild from sessions
     if (!profile.recentAnswers || profile.recentAnswers.length === 0) {
-      const allAnswers: any[] = [];
+      const allAnswers: NormalizedAnswer[] = [];
       const validLevels = ['B1', 'B2', 'C1', 'C2', 'Aditua'];
       if (profile.sessions) {
         profile.sessions.forEach(session => {
           if (session.answers) {
-            session.answers.forEach((ans: any) => {
+            session.answers.forEach((ans) => {
               const sessionLevel = (session.level && validLevels.includes(session.level)) ? session.level : profile.currentLevel;
               const ansLevel = (ans.level && validLevels.includes(ans.level)) ? ans.level : sessionLevel;
               const playerLevel = (ans.playerLevelAtAnswer && validLevels.includes(ans.playerLevelAtAnswer)) ? ans.playerLevelAtAnswer : ansLevel;
@@ -705,7 +946,6 @@ export const playerService = {
 
     // Use level-specific mastery!
     const levelGroupMastery = this.buildLevelGroupMastery(profile, currentLevel);
-    const seenGroupIdArray = Object.keys(levelGroupMastery).map(Number);
     const currentLevelGroups: ItemMastery[] = Object.values(levelGroupMastery);
 
     // If no answers at this level, reset metrics to 0
@@ -746,17 +986,6 @@ export const playerService = {
     const lastN = answersForLevel.slice(-40);
     const recentAccuracy = lastN.length > 0 ? (lastN.filter(a => a.isCorrect).length / lastN.length) : 0;
     
-    // Debug logging
-    console.log("[level-mastery-debug]", {
-      level: currentLevel,
-      answersForLevel: answersForLevel.length,
-      levelGroupMastery,
-      totalGroupsSeenInThisLevel: totalSeenGroups,
-      knowledgeScore,
-      knowledgeRate,
-    });
-
-
     const criteria = this.getLevelCriteria(currentLevel, totalCount, recentAccuracy, reviewingRatio);
     const targetQuestions = criteria.questions;
     const targetAccuracy = criteria.accuracy;
@@ -973,6 +1202,204 @@ export const playerService = {
      }
      
      return questions;
-  }
+  },
 
+  async syncProgressToCloud(profile: PlayerProfile): Promise<void> {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return; // User not logged in, remain soft
+
+    try {
+      const now = new Date().toISOString();
+      const profileToSync = applyRetentionPolicy(normalizeLoadedProfile(profile));
+      const payload = {
+        user_id: user.id,
+        schema_version: 1,
+        progress: profileToSync,
+        current_level: profileToSync.currentLevel,
+        total_sessions: profileToSync.stats.totalSessions,
+        total_answers: profileToSync.stats.totalQuestions,
+        total_correct: profileToSync.stats.totalCorrect,
+        accuracy: profileToSync.stats.globalAccuracy,
+        last_synced_at: now,
+        updated_at: now,
+      };
+
+      // Ensure user profile snippet exists first (since it has references depending on structure, though we can skip directly to snapshot upsert if we just want).
+      // actually, let's just write to user_progress_snapshots.
+      // Make sure we have a profile to link to.
+      
+      const { error: profileError } = await supabase
+        .from('user_profiles')
+        .upsert({ 
+           id: user.id, 
+           username: user.user_metadata?.username || null,
+           display_name: user.user_metadata?.username || null,
+           current_level: profileToSync.currentLevel, 
+           updated_at: now 
+        }, { onConflict: 'id' });
+      
+      if (profileError) {
+        console.error('Error syncing profile meta to cloud', profileError);
+      }
+
+      const { error } = await supabase
+        .from('user_progress_snapshots')
+        .upsert(payload, { onConflict: 'user_id' });
+
+      if (error) {
+        this.markSyncError();
+        return;
+      }
+      this.markSynced(now);
+    } catch {
+      this.markSyncError();
+    }
+  },
+
+  async loadProgressFromCloud(userId: string): Promise<PlayerProfile | null> {
+    const supabase = getSupabase();
+    if (!supabase) return null;
+    try {
+      const { data, error } = await supabase
+        .from('user_progress_snapshots')
+        .select('progress, last_synced_at')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (error || !data) return null;
+      
+      const p = normalizeLoadedProfile(data.progress as PlayerProfile);
+      p.lastCloudSyncAt = data.last_synced_at;
+      return p;
+    } catch {
+      return null;
+    }
+  },
+
+  mergeLocalAndCloudProgress(local: PlayerProfile, cloud: PlayerProfile): PlayerProfile {
+    const normalizedLocal = normalizeLoadedProfile(local);
+    const normalizedCloud = normalizeLoadedProfile(cloud);
+    const mergedSessions = dedupeBy(
+      [...(normalizedCloud.sessions || []), ...(normalizedLocal.sessions || [])],
+      buildStandardSessionKey
+    ).sort((left, right) => getSessionTimestamp(left).localeCompare(getSessionTimestamp(right)));
+    const mergedRecentAnswers = dedupeBy(
+      [...(normalizedCloud.recentAnswers || []), ...(normalizedLocal.recentAnswers || [])],
+      buildRecentAnswerKey
+    ).sort((left, right) => (left.answeredAt || '').localeCompare(right.answeredAt || ''));
+    const mergedClozeSessions = dedupeBy(
+      [...(normalizedCloud.clozeSessions || []), ...(normalizedLocal.clozeSessions || [])],
+      buildClozeSessionKey
+    ).sort((left, right) => getSessionTimestamp(left).localeCompare(getSessionTimestamp(right)));
+    const mergedDiscourseSessions = dedupeBy(
+      [...(normalizedCloud.discourseClozeSessions || []), ...(normalizedLocal.discourseClozeSessions || [])],
+      buildDiscourseSessionKey
+    ).sort((left, right) => getSessionTimestamp(left).localeCompare(getSessionTimestamp(right)));
+    const richerStats = normalizedLocal.stats.totalQuestions > normalizedCloud.stats.totalQuestions
+      ? normalizedLocal.stats
+      : normalizedCloud.stats;
+    const mergedStats = mergedSessions.length > 0 ? calculateStatsFromSessions(mergedSessions) : richerStats;
+    const localLastLevelUp = normalizedLocal.lastLevelUp;
+    const cloudLastLevelUp = normalizedCloud.lastLevelUp;
+    const latestLevelUp = !localLastLevelUp
+      ? cloudLastLevelUp
+      : !cloudLastLevelUp
+        ? localLastLevelUp
+        : new Date(localLastLevelUp.date).getTime() >= new Date(cloudLastLevelUp.date).getTime()
+          ? localLastLevelUp
+          : cloudLastLevelUp;
+
+    const merged: PlayerProfile = {
+      ...normalizedCloud,
+      installationId: normalizedLocal.installationId,
+      currentLevel: getLevelRank(normalizedLocal.currentLevel) > getLevelRank(normalizedCloud.currentLevel)
+        ? normalizedLocal.currentLevel
+        : normalizedCloud.currentLevel,
+      unlockedLevels: Array.from(new Set([...(normalizedLocal.unlockedLevels || []), ...(normalizedCloud.unlockedLevels || [])]))
+        .sort((left, right) => getLevelRank(left) - getLevelRank(right)),
+      stats: mergedStats,
+      clozeSessions: mergedClozeSessions,
+      discourseClozeSessions: mergedDiscourseSessions,
+      sessions: mergedSessions,
+      recentAnswers: mergedRecentAnswers,
+      lastLevelUp: latestLevelUp,
+      groupMastery: { ...(normalizedCloud.groupMastery || {}) },
+      wordMastery: { ...(normalizedCloud.wordMastery || {}) },
+      clozeMastery: { ...(normalizedCloud.clozeMastery || {}) },
+      discourseClozeMastery: { ...(normalizedCloud.discourseClozeMastery || {}) },
+      syncStatus: 'pending',
+      lastCloudSyncAt: [normalizedLocal.lastCloudSyncAt, normalizedCloud.lastCloudSyncAt]
+        .filter(Boolean)
+        .sort()
+        .at(-1)
+    };
+
+    // Merge mastery intelligently
+    type MasteryEntry = {
+      timesSeen: number;
+      timesCorrect: number;
+      timesWrong: number;
+      masteryScore: number;
+      status: MasteryStatus;
+      lastSeenAt: string | null;
+      nextReviewAt: string | null;
+    };
+    const mergeMasterMap = (dest: Record<string, MasteryEntry>, src: Record<string, MasteryEntry>) => {
+      if (!src) return;
+      Object.keys(src).forEach(k => {
+        if (!dest[k]) {
+          dest[k] = src[k];
+        } else {
+          const d = dest[k];
+          const s = src[k];
+          dest[k] = {
+            timesSeen: Math.max(d.timesSeen, s.timesSeen),
+            timesCorrect: Math.max(d.timesCorrect, s.timesCorrect),
+            timesWrong: Math.max(d.timesWrong, s.timesWrong),
+            masteryScore: Math.max(d.masteryScore, s.masteryScore),
+            status: (['mastered', 'known', 'learning', 'reviewing', 'seen', 'new'].find(st => d.status === st || s.status === st) || d.status) as MasteryStatus,
+            lastSeenAt: d.lastSeenAt && s.lastSeenAt ? (new Date(d.lastSeenAt) > new Date(s.lastSeenAt) ? d.lastSeenAt : s.lastSeenAt) : d.lastSeenAt || s.lastSeenAt,
+            nextReviewAt: d.nextReviewAt || s.nextReviewAt ? (d.nextReviewAt && s.nextReviewAt ? (new Date(d.nextReviewAt) < new Date(s.nextReviewAt) ? d.nextReviewAt : s.nextReviewAt) : d.nextReviewAt || s.nextReviewAt) : null,
+          };
+        }
+      });
+    };
+
+    mergeMasterMap(merged.groupMastery, normalizedLocal.groupMastery);
+    mergeMasterMap(merged.wordMastery, normalizedLocal.wordMastery);
+    mergeMasterMap(merged.clozeMastery, normalizedLocal.clozeMastery);
+    if (normalizedLocal.discourseClozeMastery && merged.discourseClozeMastery) {
+      mergeMasterMap(merged.discourseClozeMastery, normalizedLocal.discourseClozeMastery);
+    }
+
+    if (!merged.recentAnswers.length && merged.sessions && merged.sessions.length > 0) {
+      this.rebuildRecentAnswersFromSessions(merged);
+    }
+
+    return applyRetentionPolicy(merged);
+  },
+
+  markSyncPending() {
+    const profile = this.getProfile();
+    profile.syncStatus = 'pending';
+    applyRetentionPolicy(profile);
+    localStorage.setItem(PLAYER_KEY, JSON.stringify(profile));
+  },
+
+  markSyncError() {
+    const profile = this.getProfile();
+    profile.syncStatus = 'error';
+    applyRetentionPolicy(profile);
+    localStorage.setItem(PLAYER_KEY, JSON.stringify(profile));
+  },
+
+  markSynced(time: string) {
+    const profile = this.getProfile();
+    profile.syncStatus = 'synced';
+    profile.lastCloudSyncAt = time;
+    applyRetentionPolicy(profile);
+    localStorage.setItem(PLAYER_KEY, JSON.stringify(profile));
+  }
 };

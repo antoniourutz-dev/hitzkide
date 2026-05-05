@@ -15,7 +15,12 @@ interface ToastProps {
 
 export default function Toast({ toasts, onRemove }: ToastProps) {
   return (
-    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col items-center gap-2 w-full max-w-xs pointer-events-none">
+    <div
+      className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col items-center gap-2 w-full max-w-xs pointer-events-none"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
       <AnimatePresence>
         {toasts.map((toast) => (
           <ToastItem key={toast.id} toast={toast} onRemove={onRemove} />
@@ -46,6 +51,7 @@ function ToastItem({ toast, onRemove }: { toast: ToastData; onRemove: (id: strin
         toast.type === 'success' ? "bg-white text-emerald-600 border-emerald-100" :
         "bg-white text-slate-700 border-slate-100"
       )}
+      role="alert"
     >
       {toast.message}
     </motion.div>

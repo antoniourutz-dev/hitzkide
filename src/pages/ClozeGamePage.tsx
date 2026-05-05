@@ -5,12 +5,17 @@ import ClozeQuestionCard from '../components/cloze/ClozeQuestionCard';
 import ClozeExplanationCard from '../components/cloze/ClozeExplanationCard';
 import { useLanguagePreference } from '../hooks/useLanguagePreference';
 import { playerService } from '../services/playerService';
+import { useNavigate, useParams } from 'react-router-dom';
 import { X } from 'lucide-react';
 
-export default function ClozeGamePage({ onFinish, onBack, sessionSize }: { onFinish: (session: ClozeSession) => void, onBack: () => void, sessionSize: number }) {
+export default function ClozeGamePage() {
+  const { size } = useParams<{ size: string }>();
+  const navigate = useNavigate();
+  const sessionSize = parseInt(size || '5', 10);
+
   const [questions, setQuestions] = useState<LexicalClozeQuestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [answers, setAnswers] = useState<any[]>([]);
+  const [answers, setAnswers] = useState<{ questionId: number; selectedAnswer: string; isCorrect: boolean }[]>([]);
   const [isAnswered, setIsAnswered] = useState(false);
   const [languagePreference] = useLanguagePreference();
   const profile = playerService.getProfile();
@@ -23,11 +28,11 @@ export default function ClozeGamePage({ onFinish, onBack, sessionSize }: { onFin
   const currentQuestion = questions[currentIndex];
 
   const handleAnswer = (selectedAnswer: string) => {
+    if (!currentQuestion) return;
     const isCorrect = clozeService.checkClozeAnswer(currentQuestion, selectedAnswer);
     setAnswers([...answers, { questionId: currentQuestion.id, selectedAnswer, isCorrect }]);
     setIsAnswered(true);
-    
-    // Update mastery
+
     playerService.updateClozeMastery(currentQuestion.id, isCorrect, currentQuestion.level);
   };
 
@@ -36,21 +41,25 @@ export default function ClozeGamePage({ onFinish, onBack, sessionSize }: { onFin
       setCurrentIndex(currentIndex + 1);
       setIsAnswered(false);
     } else {
-        // Build session and finish
-        const session: ClozeSession = {
-            sessionId: crypto.randomUUID(),
-            type: 'cloze',
-            startedAt: new Date().toISOString(),
-            level: currentQuestion.level,
-            questions,
-            answers,
-            score: answers.filter(a => a.isCorrect).length,
-            total: questions.length,
-            completed: true
-        };
-        playerService.saveClozeSession(session);
-        onFinish(session);
+      const session: ClozeSession = {
+        sessionId: crypto.randomUUID(),
+        type: 'cloze',
+        startedAt: new Date().toISOString(),
+        level: currentQuestion.level,
+        questions,
+        answers,
+        score: answers.filter(a => a.isCorrect).length,
+        total: questions.length,
+        completed: true
+      };
+      playerService.saveClozeSession(session);
+      sessionStorage.setItem('hitzkideak_cloze_result', JSON.stringify(session));
+      navigate('/cloze/results');
     }
+  };
+
+  const handleBack = () => {
+    navigate('/cloze');
   };
 
   if (questions.length === 0) return <div className="p-6">Kargatzen...</div>;
@@ -62,20 +71,20 @@ export default function ClozeGamePage({ onFinish, onBack, sessionSize }: { onFin
            <h2 className="text-2xl font-black">Cloze testak</h2>
            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{currentIndex + 1} / {questions.length}</span>
         </div>
-        <button onClick={onBack} className="p-2 -mr-2 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
+        <button onClick={handleBack} className="p-2 -mr-2 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
           <X size={24} />
         </button>
       </div>
-      <ClozeQuestionCard 
-        question={currentQuestion} 
-        onAnswer={handleAnswer} 
-        selectedAnswer={isAnswered ? answers[currentIndex].selectedAnswer : null}
+      <ClozeQuestionCard
+        question={currentQuestion}
+        onAnswer={handleAnswer}
+        selectedAnswer={isAnswered ? answers[currentIndex]?.selectedAnswer : null}
         isAnswered={isAnswered}
       />
       {isAnswered && (
         <ClozeExplanationCard
           question={currentQuestion}
-          isCorrect={answers[currentIndex].isCorrect}
+          isCorrect={answers[currentIndex]?.isCorrect}
           languagePreference={languagePreference}
           onNext={handleNext}
         />

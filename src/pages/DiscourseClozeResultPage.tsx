@@ -1,16 +1,25 @@
+import { useState, useEffect } from 'react';
 import { DiscourseClozeSession } from '../types/discourseCloze';
 import { getDiscourseFunctionLabelEu, getFunctionRecommendationEu } from '../services/discourseClozeDiagnosisService';
+import { useNavigate } from 'react-router-dom';
 
-interface DiscourseClozeResultPageProps {
-  session: DiscourseClozeSession;
-  onRetry: () => void;
-  onGoToHome: () => void;
-  onGoToDiscourse: () => void;
-  onGoToStats?: () => void;
-  onStart?: (size: number, mode?: 'aditua' | 'review') => void;
-}
+export default function DiscourseClozeResultPage() {
+  const navigate = useNavigate();
+  const [session, setSession] = useState<DiscourseClozeSession | null>(null);
 
-export default function DiscourseClozeResultPage({ session, onRetry, onGoToHome, onGoToDiscourse, onGoToStats, onStart }: DiscourseClozeResultPageProps) {
+  useEffect(() => {
+    const stored = sessionStorage.getItem('hitzkideak_discourse_result');
+    if (stored) {
+      setSession(JSON.parse(stored));
+    } else {
+      navigate('/');
+    }
+  }, [navigate]);
+
+  if (!session) {
+    return <div className="p-6">Kargatzen...</div>;
+  }
+
   const percentage = Math.round((session.score / session.total) * 100);
   const failedAnswers = session.answers.filter(a => !a.isCorrect);
   const correctAnswers = session.answers.filter(a => a.isCorrect);
@@ -59,7 +68,7 @@ export default function DiscourseClozeResultPage({ session, onRetry, onGoToHome,
   return (
     <div className="p-6 space-y-6 pb-20">
       <h2 className="text-2xl font-black text-slate-800">Emaitzak</h2>
-      
+
       <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-2 relative overflow-hidden">
         <div className="absolute top-0 right-0 p-4 opacity-5 bg-sky-500 rounded-full blur-2xl w-32 h-32 -mr-10 -mt-10 pointer-events-none"></div>
         <p className="text-5xl font-black text-sky-600">{percentage}%</p>
@@ -69,7 +78,7 @@ export default function DiscourseClozeResultPage({ session, onRetry, onGoToHome,
 
       <div className="bg-sky-50 rounded-3xl border border-sky-100 p-6 space-y-3 shadow-sm">
          <p className="text-[10px] font-black uppercase tracking-widest text-sky-600 opacity-80 mb-2">Saioaren azterketa</p>
-         
+
          <div className="space-y-2 pb-2">
             {bestFunction && (
                <div className="text-sm flex justify-between">
@@ -121,21 +130,19 @@ export default function DiscourseClozeResultPage({ session, onRetry, onGoToHome,
       )}
 
       <div className="space-y-3 pt-4">
-        {onGoToStats && (
-            <button onClick={onGoToStats} className="w-full py-4 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl font-black transition-colors">
-                Estatistikak ikusi
-            </button>
-        )}
-        <button onClick={() => onStart?.(10, 'review')} className="w-full py-4 bg-orange-50 hover:bg-orange-100 text-orange-600 border border-orange-200 rounded-2xl font-black transition-colors">
+        <button onClick={() => navigate('/stats')} className="w-full py-4 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl font-black transition-colors">
+            Estatistikak ikusi
+        </button>
+        <button onClick={() => navigate('/discourse/10/review')} className="w-full py-4 bg-orange-50 hover:bg-orange-100 text-orange-600 border border-orange-200 rounded-2xl font-black transition-colors">
             Errepasatu
         </button>
-        <button onClick={onRetry} className="w-full py-4 bg-sky-500 hover:bg-sky-600 text-white rounded-2xl font-black transition-colors">
+        <button onClick={() => navigate('/discourse/5/normal')} className="w-full py-4 bg-sky-500 hover:bg-sky-600 text-white rounded-2xl font-black transition-colors">
             Beste saio bat
         </button>
-        <button onClick={onGoToDiscourse} className="w-full py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-black transition-colors">
+        <button onClick={() => navigate('/discourse')} className="w-full py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-black transition-colors">
             Antolatzaileen menua
         </button>
-        <button onClick={onGoToHome} className="w-full py-4 bg-white border-2 border-slate-100 text-slate-500 font-bold rounded-2xl hover:border-slate-200 hover:text-slate-600 transition-colors">
+        <button onClick={() => navigate('/')} className="w-full py-4 bg-white border-2 border-slate-100 text-slate-500 font-bold rounded-2xl hover:border-slate-200 hover:text-slate-600 transition-colors">
             Hasierara itzuli
         </button>
       </div>
