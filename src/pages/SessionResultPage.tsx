@@ -10,6 +10,7 @@ import {
   removeSessionStorageItem,
 } from '../lib/storage';
 import { getConceptLabel } from '../utils/labels';
+import { usePlayerProfile } from '../hooks/usePlayerProfile';
 
 interface SessionResultPageProps {
   onToast?: (message: string, type?: 'success' | 'info' | 'warning' | 'achievement') => void;
@@ -33,6 +34,7 @@ const STATUS_LABELS: Record<MasteryStatus, string> = {
 
 export default function SessionResultPage({ onToast: _onToast }: SessionResultPageProps) {
   const navigate = useNavigate();
+  const profile = usePlayerProfile();
   const [showDetails, setShowDetails] = useState(false);
   const [result, setResult] = useState<SessionResult | null>(null);
   const [storedResult, setStoredResult] = useState<StoredResultPayload | null>(null);
@@ -131,7 +133,7 @@ export default function SessionResultPage({ onToast: _onToast }: SessionResultPa
     );
   }
 
-  const progress = playerService.calculateLevelProgress();
+  const progress = playerService.calculateLevelProgress(profile);
   const percentage = Math.round((result.score / result.total) * 100);
 
   const getMessage = (s: number, t: number) => {

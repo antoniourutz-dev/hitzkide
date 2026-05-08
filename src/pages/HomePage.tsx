@@ -170,7 +170,7 @@ export default function HomePage({ onToast }: HomePageProps) {
     setShowLevelUp(false);
   };
 
-  const progress = playerService.calculateLevelProgress();
+  const progress = playerService.calculateLevelProgress(profile);
   const currentIdx = ['B1', 'B2', 'C1', 'C2', 'Aditua'].indexOf(profile.currentLevel);
   const nextLevel = ['B2', 'C1', 'C2', 'Aditua'][currentIdx] || profile.currentLevel;
 

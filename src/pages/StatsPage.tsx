@@ -27,7 +27,7 @@ export default function StatsPage() {
     });
   }, []);
   const wordMastery = playerService.getWordMasteryCounts();
-  const progress = playerService.calculateLevelProgress();
+  const progress = playerService.calculateLevelProgress(profile);
   const discourseStats = playerService.getDiscourseClozeStats(profile);
   
   const accuracy = profile.stats.globalAccuracy ? Math.round(profile.stats.globalAccuracy) : 0;
