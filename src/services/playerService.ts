@@ -354,29 +354,6 @@ function profileHasMeaningfulProgress(profile: PlayerProfile): boolean {
   );
 }
 
-function buildComparableProfileSnapshot(profile: PlayerProfile): string {
-  const normalized = normalizeLoadedProfile(profile);
-
-  return JSON.stringify({
-    currentLevel: normalized.currentLevel,
-    unlockedLevels: normalized.unlockedLevels,
-    stats: normalized.stats,
-    groupMastery: normalized.groupMastery,
-    wordMastery: normalized.wordMastery,
-    clozeSessions: normalized.clozeSessions,
-    clozeMastery: normalized.clozeMastery,
-    discourseClozeSessions: normalized.discourseClozeSessions || [],
-    discourseClozeMastery: normalized.discourseClozeMastery || {},
-    lastLevelUp: normalized.lastLevelUp,
-    recentAnswers: normalized.recentAnswers,
-    sessions: normalized.sessions || []
-  });
-}
-
-function areProfilesEquivalent(left: PlayerProfile, right: PlayerProfile): boolean {
-  return buildComparableProfileSnapshot(left) === buildComparableProfileSnapshot(right);
-}
-
 function notifyProfileUpdated() {
   if (typeof window === 'undefined') {
     return;
@@ -674,6 +651,14 @@ export const playerService = {
       const inMemoryProfile = this.getProfile();
       const legacyProfile = readLegacyLocalProfile();
       const cloudProfile = await this.loadProgressFromCloud(userId);
+
+      if (cloudProfile) {
+        clearLegacyLocalProfile();
+        this.saveProfile(cloudProfile, { markPending: false });
+        this.markSynced(cloudProfile.lastCloudSyncAt || new Date().toISOString());
+        return this.getProfile();
+      }
+
       const memoryHasProgress =
         inMemoryProfile.syncStatus !== 'loading' &&
         inMemoryProfile.syncStatus !== 'auth_required' &&
@@ -687,32 +672,11 @@ export const playerService = {
             ? legacyProfile
             : null;
 
-      if (!cloudProfile) {
-        const seedProfile = localCandidate && profileHasMeaningfulProgress(localCandidate)
-          ? localCandidate
-          : createInitialProfile('pending');
-        clearLegacyLocalProfile();
-        return this.syncProgressToCloud(seedProfile, { userId, skipMerge: true });
-      }
-
-      if (!localCandidate || !profileHasMeaningfulProgress(localCandidate)) {
-        clearLegacyLocalProfile();
-        this.saveProfile(cloudProfile, { markPending: false });
-        this.markSynced(cloudProfile.lastCloudSyncAt || new Date().toISOString());
-        return this.getProfile();
-      }
-
-      const mergedProfile = this.mergeLocalAndCloudProgress(localCandidate, cloudProfile);
-
-      if (areProfilesEquivalent(mergedProfile, cloudProfile)) {
-        clearLegacyLocalProfile();
-        this.saveProfile(mergedProfile, { markPending: false });
-        this.markSynced(cloudProfile.lastCloudSyncAt || new Date().toISOString());
-        return this.getProfile();
-      }
-
+      const seedProfile = localCandidate && profileHasMeaningfulProgress(localCandidate)
+        ? localCandidate
+        : createInitialProfile('pending');
       clearLegacyLocalProfile();
-      return this.syncProgressToCloud(mergedProfile, { userId, skipMerge: true });
+      return this.syncProgressToCloud(seedProfile, { userId, skipMerge: true });
     })().catch((error) => {
       this.markSyncError();
       observabilityService.captureError('sync.authenticated_profile_failed', 'sync', error, {
