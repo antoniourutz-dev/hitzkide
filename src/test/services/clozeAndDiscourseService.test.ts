@@ -4,6 +4,7 @@ import { discourseClozeService } from '../../services/discourseClozeService';
 import { playerService } from '../../services/playerService';
 import { DiscourseClozeQuestion } from '../../types/discourseCloze';
 import * as supabaseModule from '../../lib/supabase';
+import { contentCache } from '../../services/contentCache';
 
 function createDiscourseQuestion(id: number): DiscourseClozeQuestion {
   return {
@@ -41,6 +42,8 @@ function createDiscourseQuestion(id: number): DiscourseClozeQuestion {
 
 describe('cloze and discourse services', () => {
   afterEach(() => {
+    localStorage.clear();
+    playerService.resetProfile('auth_required');
     vi.restoreAllMocks();
   });
 
@@ -114,6 +117,33 @@ describe('cloze and discourse services', () => {
     });
 
     expect(questions).toEqual([]);
+  });
+
+  it('reuses cached cloze questions when offline', async () => {
+    contentCache.write('cloze:normal:B1', [
+      {
+        id: 8,
+        group_id: 1,
+        source_id: 1,
+        level: 'B1',
+        difficulty: 'easy',
+        mode: 'normal',
+        sentence_eu: 'Hau ______ da.',
+        answer: 'ederra',
+        options: ['ederra', 'okerra'],
+        is_active: true,
+      },
+    ]);
+    vi.spyOn(supabaseModule, 'getSupabase').mockReturnValue(null);
+
+    const questions = await clozeService.fetchClozeQuestions({
+      currentLevel: 'B1',
+      mode: 'normal',
+      limit: 5,
+    });
+
+    expect(questions).toHaveLength(1);
+    expect(questions[0]?.answer).toBe('ederra');
   });
 
   it('normalizes discourse text and answers', () => {
@@ -196,5 +226,21 @@ describe('cloze and discourse services', () => {
 
     expect(result.questions).toEqual([]);
     expect(result.error).toBeInstanceOf(Error);
+  });
+
+  it('reuses cached discourse questions when offline', async () => {
+    contentCache.write('discourse:normal:B1', [createDiscourseQuestion(55)]);
+    vi.spyOn(supabaseModule, 'getSupabase').mockReturnValue(null);
+
+    const result = await discourseClozeService.fetchDiscourseClozeQuestions({
+      currentLevel: 'B1',
+      unlockedLevels: ['B1'],
+      mode: 'normal',
+      limit: 5,
+    });
+
+    expect(result.error).toBeUndefined();
+    expect(result.questions).toHaveLength(1);
+    expect(result.questions[0]?.id).toBe(55);
   });
 });

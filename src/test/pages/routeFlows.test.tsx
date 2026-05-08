@@ -12,9 +12,11 @@ import { GameQuestion } from '../../types/question';
 import { LexicalClozeQuestion } from '../../types/cloze';
 import { DiscourseClozeQuestion, DiscourseClozeSession } from '../../types/discourseCloze';
 import { AnswerResult } from '../../types/stats';
+import { playerService } from '../../services/playerService';
 
 const mocks = vi.hoisted(() => ({
   fetchGameData: vi.fn(),
+  hasCachedGameData: vi.fn(),
   buildSessionQuestions: vi.fn(),
   getCurrentUser: vi.fn(),
   fetchClozeQuestions: vi.fn(),
@@ -24,6 +26,10 @@ const mocks = vi.hoisted(() => ({
   buildDiscourseReviewSession: vi.fn(),
   fetchDiscourseOptionExplanations: vi.fn(),
   checkDiscourseClozeAnswer: vi.fn(),
+  supabaseGetUser: vi.fn(),
+  supabaseMaybeSingle: vi.fn(),
+  supabaseProfileUpsert: vi.fn(),
+  supabaseSnapshotUpsert: vi.fn(),
 }));
 
 vi.mock('../../hooks/useLanguagePreference', () => ({
@@ -32,6 +38,7 @@ vi.mock('../../hooks/useLanguagePreference', () => ({
 
 vi.mock('../../services/lexicalService', () => ({
   fetchGameData: (...args: unknown[]) => mocks.fetchGameData(...args),
+  hasCachedGameData: (...args: unknown[]) => mocks.hasCachedGameData(...args),
 }));
 
 vi.mock('../../services/questionService', () => ({
@@ -41,6 +48,8 @@ vi.mock('../../services/questionService', () => ({
 vi.mock('../../services/authService', () => ({
   authService: {
     getCurrentUser: (...args: unknown[]) => mocks.getCurrentUser(...args),
+    getDisplayName: (user: { user_metadata?: { username?: string; display_name?: string }; email?: string } | null) =>
+      user?.user_metadata?.username || user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'Gonbidatua',
     onAuthStateChange: () => ({ data: { subscription: { unsubscribe: vi.fn() } } }),
   },
 }));
@@ -60,6 +69,36 @@ vi.mock('../../services/discourseClozeService', () => ({
     fetchDiscourseOptionExplanations: (...args: unknown[]) => mocks.fetchDiscourseOptionExplanations(...args),
     checkDiscourseClozeAnswer: (...args: unknown[]) => mocks.checkDiscourseClozeAnswer(...args),
   },
+}));
+
+vi.mock('../../lib/supabase', () => ({
+  getSupabase: () => ({
+    auth: {
+      getUser: mocks.supabaseGetUser,
+    },
+    from: (table: string) => {
+      if (table === 'user_profiles') {
+        return {
+          upsert: mocks.supabaseProfileUpsert,
+        };
+      }
+
+      if (table === 'user_progress_snapshots') {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: mocks.supabaseMaybeSingle,
+            }),
+          }),
+          upsert: mocks.supabaseSnapshotUpsert,
+        };
+      }
+
+      return {
+        upsert: vi.fn(),
+      };
+    },
+  }),
 }));
 
 function createQuestion(id: string, groupId: number): GameQuestion {
@@ -189,13 +228,27 @@ function renderWithRoutes(initialEntry: string, routes: ReactNode) {
 
 describe('critical route flows', () => {
   beforeEach(() => {
+    const fakeUser = {
+      id: 'user-1',
+      user_metadata: {
+        username: 'ikaslea',
+        display_name: 'Ikaslea',
+      },
+    };
+
     localStorage.clear();
     sessionStorage.clear();
     vi.clearAllMocks();
-    mocks.getCurrentUser.mockResolvedValue(null);
+    playerService.resetProfile('auth_required');
+    mocks.hasCachedGameData.mockReturnValue(false);
+    mocks.getCurrentUser.mockResolvedValue(fakeUser);
     mocks.getClozeExplanation.mockReturnValue({
       eu: { explanation: 'Azalpena', nuance: 'Ñabardura', whyNot: 'Ez da egokia' },
     });
+    mocks.supabaseGetUser.mockResolvedValue({ data: { user: fakeUser } });
+    mocks.supabaseMaybeSingle.mockResolvedValue({ data: null, error: null });
+    mocks.supabaseProfileUpsert.mockResolvedValue({ error: null });
+    mocks.supabaseSnapshotUpsert.mockResolvedValue({ error: null });
   });
 
   it('starts a main session from the home route and navigates to /game/:mode', async () => {
@@ -242,7 +295,7 @@ describe('critical route flows', () => {
       </>,
     );
 
-    await userEvent.click(screen.getByRole('option', { name: /correct-1/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /correct-1/i }));
     await userEvent.click(await screen.findByRole('button', { name: /emaitza ikusi/i }));
 
     await waitFor(() => {

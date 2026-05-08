@@ -8,6 +8,9 @@ import {
 } from '../types/discourseCloze';
 import { PlayerProfile } from '../types/stats';
 import { playerService } from './playerService';
+import { contentCache } from './contentCache';
+import { observabilityService } from '../analytics/observabilityService';
+import { createClientId } from '../lib/id';
 
 type RawDiscourseQuestion = Omit<Partial<DiscourseClozeQuestion>, 'options'> & {
   id?: number | null;
@@ -25,6 +28,42 @@ const DISCOURSE_LEVEL_ORDER: DiscourseClozeLevel[] = ['B1', 'B2', 'C1', 'C2', 'A
 
 function shuffleArray<T>(items: T[]): T[] {
   return [...items].sort(() => Math.random() - 0.5);
+}
+
+function buildDiscourseCacheKey(levels: DiscourseClozeLevel[], mode?: DiscourseClozeMode): string {
+  return `discourse:${mode || 'all'}:${levels.join(',')}`;
+}
+
+function buildDiscourseExplanationCacheKey(questionId: number): string {
+  return `discourse-explanations:${questionId}`;
+}
+
+function prioritizeDiscourseQuestions(
+  questions: DiscourseClozeQuestion[],
+  currentLevel: DiscourseClozeLevel,
+  requestedLimit: number,
+  excludeRecentlySeenIds?: number[]
+): DiscourseClozeQuestion[] {
+  let filteredQuestions = questions;
+
+  if (excludeRecentlySeenIds && excludeRecentlySeenIds.length > 0) {
+    const unseenQuestions = filteredQuestions.filter(
+      (question) => !excludeRecentlySeenIds.includes(question.id)
+    );
+
+    if (unseenQuestions.length >= Math.min(requestedLimit, filteredQuestions.length)) {
+      filteredQuestions = unseenQuestions;
+    }
+  }
+
+  const currentLevelQuestions = shuffleArray(
+    filteredQuestions.filter((question) => question.level === currentLevel)
+  );
+  const fallbackQuestions = shuffleArray(
+    filteredQuestions.filter((question) => question.level !== currentLevel)
+  );
+
+  return [...currentLevelQuestions, ...fallbackQuestions].slice(0, requestedLimit);
 }
 
 export function getAccessibleDiscourseLevels(
@@ -94,11 +133,24 @@ export const discourseClozeService = {
     limit?: number;
     excludeRecentlySeenIds?: number[];
   }): Promise<DiscourseQuestionFetchResult> {
-    const supabase = getSupabase();
-    if (!supabase) return { questions: [], error: new Error('Supabase client not initialized') };
     const accessibleLevels = getAccessibleDiscourseLevels(params.currentLevel, params.unlockedLevels);
     const requestedLimit = params.limit || 50;
     const queryLimit = Math.max(requestedLimit * 4, 100);
+    const cacheKey = buildDiscourseCacheKey(accessibleLevels, params.mode);
+    const cachedQuestions = contentCache.read<DiscourseClozeQuestion[]>(cacheKey) || [];
+    const fallbackQuestions = prioritizeDiscourseQuestions(
+      cachedQuestions,
+      params.currentLevel,
+      requestedLimit,
+      params.excludeRecentlySeenIds
+    );
+    const supabase = getSupabase();
+
+    if (!supabase) {
+      return fallbackQuestions.length > 0
+        ? { questions: fallbackQuestions }
+        : { questions: [], error: new Error('Supabase client not initialized') };
+    }
 
     let query = supabase
       .from('discourse_cloze_questions_for_game')
@@ -118,35 +170,37 @@ export const discourseClozeService = {
     const { data, error } = await query.limit(queryLimit);
 
     if (error) {
-      console.error('Error fetching discourse cloze questions:', error);
-      return { questions: [], error };
+      observabilityService.captureError('supabase.discourse_fetch_failed', 'supabase', error, {
+        mode: params.mode || 'normal',
+        currentLevel: params.currentLevel,
+      });
+      return fallbackQuestions.length > 0
+        ? { questions: fallbackQuestions }
+        : { questions: [], error };
     }
 
-    let questions: DiscourseClozeQuestion[] = (data || [])
+    const normalizedQuestions: DiscourseClozeQuestion[] = (data || [])
       .map(this.normalizeDiscourseQuestion)
       .filter((q): q is DiscourseClozeQuestion => !!q);
 
-    if (params.excludeRecentlySeenIds && params.excludeRecentlySeenIds.length > 0) {
-      const unseenQuestions = questions.filter((question) => !params.excludeRecentlySeenIds!.includes(question.id));
-      if (unseenQuestions.length >= Math.min(requestedLimit, questions.length)) {
-        questions = unseenQuestions;
-      }
+    if (normalizedQuestions.length > 0) {
+      contentCache.write(cacheKey, normalizedQuestions);
     }
 
-    const currentLevelQuestions = shuffleArray(
-      questions.filter((question) => question.level === params.currentLevel)
+    const questions = prioritizeDiscourseQuestions(
+      normalizedQuestions.length > 0 ? normalizedQuestions : cachedQuestions,
+      params.currentLevel,
+      requestedLimit,
+      params.excludeRecentlySeenIds
     );
-    const fallbackQuestions = shuffleArray(
-      questions.filter((question) => question.level !== params.currentLevel)
-    );
-
-    questions = [...currentLevelQuestions, ...fallbackQuestions].slice(0, requestedLimit);
     return { questions };
   },
 
   async fetchDiscourseOptionExplanations(questionId: number): Promise<DiscourseClozeOptionExplanation[]> {
+    const cacheKey = buildDiscourseExplanationCacheKey(questionId);
+    const cachedExplanations = contentCache.read<DiscourseClozeOptionExplanation[]>(cacheKey) || [];
     const supabase = getSupabase();
-    if (!supabase) return [];
+    if (!supabase) return cachedExplanations;
 
     const { data, error } = await supabase
       .from('discourse_cloze_options_for_game')
@@ -155,11 +209,18 @@ export const discourseClozeService = {
       .order('option_order');
 
     if (error) {
-      console.error('Error fetching discourse option explanations:', error);
-      return [];
+      observabilityService.captureError('supabase.discourse_option_fetch_failed', 'supabase', error, {
+        questionId,
+      });
+      return cachedExplanations;
     }
 
-    return data || [];
+    const normalizedExplanations = data || [];
+    if (normalizedExplanations.length > 0) {
+      contentCache.write(cacheKey, normalizedExplanations);
+    }
+
+    return normalizedExplanations.length > 0 ? normalizedExplanations : cachedExplanations;
   },
 
   async buildDiscourseReviewSession(profile: PlayerProfile, params: {
@@ -181,7 +242,7 @@ export const discourseClozeService = {
     const selected = reviewQuestions.slice(0, Math.max(5, params.sessionSize));
 
     return {
-      sessionId: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2),
+      sessionId: createClientId('discourse-review-session'),
       type: 'discourse_cloze',
       startedAt: new Date().toISOString(),
       level: params.currentLevel,
@@ -214,7 +275,7 @@ export const discourseClozeService = {
     const selected: DiscourseClozeQuestion[] = shuffleArray(questions).slice(0, params.sessionSize);
 
     return {
-      sessionId: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2),
+      sessionId: createClientId('discourse-session'),
       type: 'discourse_cloze',
       startedAt: new Date().toISOString(),
       level: params.currentLevel,

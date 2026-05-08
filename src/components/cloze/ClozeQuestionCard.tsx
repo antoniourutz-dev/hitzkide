@@ -28,12 +28,14 @@ export default function ClozeQuestionCard({ question, onAnswer, selectedAnswer, 
         {parts[1]}
       </p>
 
-      <div className="grid grid-cols-1 gap-3">
+      <div className="grid grid-cols-1 gap-3" role="group" aria-label="Cloze aukerak">
         {question.options.map((option) => (
           <button
             key={option}
             onClick={() => !isAnswered && onAnswer(option)}
             disabled={isAnswered}
+            aria-pressed={selectedAnswer === option}
+            aria-label={option}
             className={cn(
               "w-full py-4 px-6 rounded-2xl text-left font-bold transition-all",
               isAnswered && option === question.answer ? "bg-emerald-100 border-emerald-500 text-emerald-800" :

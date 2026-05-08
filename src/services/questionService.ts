@@ -8,6 +8,9 @@ const LEVEL_ORDER: UserLevel[] = ['B1', 'B2', 'C1', 'C2', 'Aditua'];
 export const MAIN_SESSION_QUESTION_COUNT = 10;
 export const QUICK_SESSION_QUESTION_COUNT = 5;
 export const MIN_NORMAL_SESSION_QUESTIONS = 5;
+const RECENT_GROUP_COOLDOWN_ANSWERS = 240;
+const RECENT_PROMPT_COOLDOWN_ANSWERS = 320;
+const RECENT_GROUP_HARD_BLOCK_ANSWERS = 120;
 
 type SessionMode = 'main' | 'quick' | 'review';
 type DiscardedReason =
@@ -23,6 +26,11 @@ type SessionBuildResult = {
   generatedCount: number;
   fallbackUsed: boolean;
   discardedReasons: Record<DiscardedReason, number>;
+};
+
+type CandidateWord = LexicalWord & {
+  _groupGrammar: string | null;
+  _groupId: number;
 };
 
 export async function buildSessionQuestions(
@@ -41,6 +49,37 @@ export async function buildSessionQuestions(
   const currentLevelIdx = LEVEL_ORDER.indexOf(currentLevel);
   const unlockedLevels = LEVEL_ORDER.slice(0, currentLevelIdx + 1);
   const nextLevel = currentLevelIdx < LEVEL_ORDER.length - 1 ? LEVEL_ORDER[currentLevelIdx + 1] : null;
+  const validWordsByGroup = new Map<number, LexicalWord[]>();
+  validGroups.forEach((group) => {
+    validWordsByGroup.set(group.id, group.words.filter(isValidWord));
+  });
+
+  const allCandidateWords: CandidateWord[] = [];
+  const candidateWordsByGrammar = new Map<string, CandidateWord[]>();
+
+  allGroups.forEach((group) => {
+    if (!group.is_active) return;
+
+    group.words
+      .filter((word) => word.status === 'egokia' || word.status === 'kontuz')
+      .forEach((word) => {
+        const candidateWord: CandidateWord = {
+          ...word,
+          _groupId: group.id,
+          _groupGrammar: group.grammar || null,
+        };
+
+        allCandidateWords.push(candidateWord);
+
+        const grammarKey = group.grammar || '';
+        const existingPool = candidateWordsByGrammar.get(grammarKey);
+        if (existingPool) {
+          existingPool.push(candidateWord);
+        } else {
+          candidateWordsByGrammar.set(grammarKey, [candidateWord]);
+        }
+      });
+  });
 
   const discardedReasons: Record<DiscardedReason, number> = {
     not_enough_valid_words: 0,
@@ -54,50 +93,184 @@ export async function buildSessionQuestions(
   const usedGroupIds = new Set<number>();
   const usedPromptWords = new Set<string>();
   const usedPromptCorrectPairs = new Set<string>(); // promptWordId-correctWordId
+  const recentAnswers = profile.recentAnswers || [];
+  const recentGroupIds = new Set(
+    recentAnswers
+      .slice(-RECENT_GROUP_COOLDOWN_ANSWERS)
+      .map((answer) => answer.groupId)
+      .filter((groupId): groupId is number => typeof groupId === 'number')
+  );
+  const veryRecentGroupIds = new Set(
+    recentAnswers
+      .slice(-RECENT_GROUP_HARD_BLOCK_ANSWERS)
+      .map((answer) => answer.groupId)
+      .filter((groupId): groupId is number => typeof groupId === 'number')
+  );
+  const recentPromptWordIds = new Set(
+    recentAnswers
+      .slice(-RECENT_PROMPT_COOLDOWN_ANSWERS)
+      .map((answer) => answer.promptWordId)
+      .filter((wordId): wordId is number => typeof wordId === 'number')
+  );
 
   const requestedCount = mode === 'main' ? MAIN_SESSION_QUESTION_COUNT : QUICK_SESSION_QUESTION_COUNT;
   let targetCount = requestedCount;
   let fallbackUsed = false;
 
+  const getCompatibleGrammar = (grammar: string) => {
+    if (grammar === 'aditza') return ['aditza', 'aditz_esapidea'];
+    if (grammar === 'aditz_esapidea') return ['aditz_esapidea', 'aditza'];
+    if (grammar === 'adberbioa') return ['adberbioa', 'denbora_adberbioa'];
+    if (grammar === 'denbora_adberbioa') return ['denbora_adberbioa', 'adberbioa'];
+    if (grammar === 'lokailua') return ['lokailua', 'esapidea'];
+    if (grammar === 'esapidea') return ['esapidea', 'lokailua'];
+    return [grammar];
+  };
+
+  const getShuffledCopy = <T,>(items: T[]): T[] => [...items].sort(() => Math.random() - 0.5);
+
+  const buildDistractorPool = (
+    group: LexicalGroup,
+    promptWord: LexicalWord,
+    correctWord: LexicalWord
+  ): LexicalWord[] => {
+    const blockedWords = new Set([
+      promptWord.word.toLowerCase(),
+      correctWord.word.toLowerCase(),
+    ]);
+    const selectedDistractors: CandidateWord[] = [];
+    const selectedWords = new Set<string>();
+
+    const addFromPool = (pool: CandidateWord[]) => {
+      if (selectedDistractors.length >= 3 || pool.length === 0) {
+        return;
+      }
+
+      const shuffledPool = getShuffledCopy(pool);
+      for (const candidate of shuffledPool) {
+        const normalizedWord = candidate.word.toLowerCase();
+
+        if (
+          candidate._groupId === group.id ||
+          blockedWords.has(normalizedWord) ||
+          selectedWords.has(normalizedWord)
+        ) {
+          continue;
+        }
+
+        selectedDistractors.push(candidate);
+        selectedWords.add(normalizedWord);
+
+        if (selectedDistractors.length >= 3) {
+          break;
+        }
+      }
+    };
+
+    addFromPool(candidateWordsByGrammar.get(group.grammar || '') || []);
+
+    if (selectedDistractors.length < 3) {
+      const compatiblePool = getCompatibleGrammar(group.grammar || '')
+        .flatMap((grammar) => candidateWordsByGrammar.get(grammar) || []);
+      addFromPool(compatiblePool);
+    }
+
+    if (selectedDistractors.length < 3) {
+      addFromPool(allCandidateWords);
+    }
+
+    return selectedDistractors.slice(0, 3);
+  };
+
   // Let's gather pools
   const now = new Date();
-  
-  // pool consolidation: learning groups close to becoming known
-  const poolConsolidation = validGroups.filter(g => 
-    g.reviewed_level === currentLevel &&
-    profile.groupMastery[g.id]?.status === 'learning' &&
-    ((profile.groupMastery[g.id].masteryScore || 0) >= 2 || (profile.groupMastery[g.id].correctStreak || 0) >= 1 || (profile.groupMastery[g.id].timesCorrect || 0) >= 1) &&
-    (profile.groupMastery[g.id].timesSeen || 0) >= 1
-  ).sort((a, b) => {
-    const ma = profile.groupMastery[a.id];
-    const mb = profile.groupMastery[b.id];
-    if (mb.masteryScore !== ma.masteryScore) return (mb.masteryScore || 0) - (ma.masteryScore || 0);
-    return (mb.correctStreak || 0) - (ma.correctStreak || 0);
-  });
 
-  // pool 1: current level, unseen or learning (excluding consolidation)
-  const pool1 = validGroups.filter(g => 
-    g.reviewed_level === currentLevel && 
-    (!profile.groupMastery[g.id] || ['new', 'seen', 'learning'].includes(profile.groupMastery[g.id].status)) &&
-    !poolConsolidation.find(cg => cg.id === g.id)
-  );
+  const isUnlockedGroup = (group: LexicalGroup) => unlockedLevels.includes(group.reviewed_level as UserLevel);
+  const getMastery = (group: LexicalGroup) => profile.groupMastery[group.id];
+  const getLastSeenTime = (group: LexicalGroup): number => {
+    const timestamp = getMastery(group)?.lastSeenAt;
+    return timestamp ? new Date(timestamp).getTime() : 0;
+  };
+  const isReviewDue = (group: LexicalGroup): boolean => {
+    const mastery = getMastery(group);
+    if (!mastery) return false;
+    if (mastery.status === 'reviewing' || (mastery.wrongStreak || 0) > 0) return true;
+    return Boolean(mastery.nextReviewAt && new Date(mastery.nextReviewAt) <= now);
+  };
+  const isRestingKnownGroup = (group: LexicalGroup): boolean => {
+    const status = getMastery(group)?.status;
+    return (status === 'known' || status === 'mastered') && !isReviewDue(group);
+  };
+  const isRecentlySeenGroup = (group: LexicalGroup): boolean => recentGroupIds.has(group.id);
+  const isVeryRecentlySeenGroup = (group: LexicalGroup): boolean => veryRecentGroupIds.has(group.id);
+  const scoreGroupForSelection = (group: LexicalGroup): number => {
+    const mastery = getMastery(group);
+    const unseenBoost = !mastery || mastery.status === 'new' ? 500 : 0;
+    const dueBoost = isReviewDue(group) ? 260 : 0;
+    const oldnessBoost = Math.min(160, Math.max(0, now.getTime() - getLastSeenTime(group)) / (1000 * 60 * 60 * 24));
+    const recentPenalty = isRecentlySeenGroup(group) ? 900 : 0;
+    const veryRecentPenalty = isVeryRecentlySeenGroup(group) ? 2000 : 0;
+    const masteredPenalty = isRestingKnownGroup(group) ? 900 : 0;
+    const learningBoost = mastery?.status === 'learning' || mastery?.status === 'seen' ? 80 : 0;
 
-  // pool 2: review of unlocked levels
-  const pool2 = validGroups.filter(g => 
-    unlockedLevels.includes(g.reviewed_level as UserLevel) &&
-    (profile.groupMastery[g.id]?.status === 'reviewing' || (profile.groupMastery[g.id]?.nextReviewAt && new Date(profile.groupMastery[g.id].nextReviewAt!) < now))
-  );
+    return unseenBoost + dueBoost + oldnessBoost + learningBoost - recentPenalty - veryRecentPenalty - masteredPenalty + Math.random();
+  };
+  const sortForSelection = (groups: LexicalGroup[]) => [...groups].sort((a, b) => scoreGroupForSelection(b) - scoreGroupForSelection(a));
 
-  // pool 3: challenge
-  const pool3 = nextLevel ? validGroups.filter(g => g.reviewed_level === nextLevel) : [];
+  const poolReview = sortForSelection(validGroups.filter(g =>
+    isUnlockedGroup(g) &&
+    isReviewDue(g) &&
+    (!isVeryRecentlySeenGroup(g) || (getMastery(g)?.wrongStreak || 0) > 0)
+  ));
 
-  // pool 4: any active/safe from unlocked levels
-  const pool4 = validGroups.filter(g => unlockedLevels.includes(g.reviewed_level as UserLevel));
+  const poolNewCurrentLevel = sortForSelection(validGroups.filter(g => {
+    const mastery = getMastery(g);
+    return g.reviewed_level === currentLevel &&
+      (!mastery || mastery.status === 'new') &&
+      !isRecentlySeenGroup(g);
+  }));
+
+  const poolLearningDue = sortForSelection(validGroups.filter(g => {
+    const status = getMastery(g)?.status;
+    return isUnlockedGroup(g) &&
+      (status === 'seen' || status === 'learning') &&
+      isReviewDue(g) &&
+      !isVeryRecentlySeenGroup(g);
+  }));
+
+  const poolLevelExpansion = sortForSelection(validGroups.filter(g => {
+    const groupLevel = g.reviewed_level as UserLevel;
+    const mastery = getMastery(g);
+    const isNextLevel = nextLevel && groupLevel === nextLevel;
+    const isKnownUnlockedLevel = isUnlockedGroup(g);
+
+    return (isNextLevel || isKnownUnlockedLevel) &&
+      (!mastery || mastery.status === 'new') &&
+      !isRecentlySeenGroup(g);
+  }));
+
+  const poolExplorationFallback = sortForSelection(validGroups.filter(g =>
+    isUnlockedGroup(g) &&
+    !isRecentlySeenGroup(g) &&
+    !isRestingKnownGroup(g)
+  ));
+
+  const poolSoftExpansionFallback = sortForSelection(validGroups.filter(g => {
+    const mastery = getMastery(g);
+    return (!mastery || mastery.status === 'new') &&
+      !isVeryRecentlySeenGroup(g) &&
+      !isRestingKnownGroup(g);
+  }));
+
+  const poolEmergency = sortForSelection(validGroups.filter(g =>
+    isUnlockedGroup(g) &&
+    !isVeryRecentlySeenGroup(g)
+  ));
 
   // Determine actual target count for 'review'
   if (mode === 'review') {
-    targetCount = Math.max(3, Math.min(10, pool2.length)); 
-    if (pool2.length === 0) targetCount = 3; // fallback if user clicked review with nothing pending, we will just give 3 to not crash.
+    targetCount = Math.max(3, Math.min(10, poolReview.length));
+    if (poolReview.length === 0) targetCount = 3; // fallback if user clicked review with nothing pending
   }
 
   // Pass logic definition
@@ -107,14 +280,22 @@ export async function buildSessionQuestions(
       return false;
     }
 
-    const validWords = group.words.filter(isValidWord);
+    const validWords = validWordsByGroup.get(group.id) || [];
     if (validWords.length < 2) {
       discardedReasons.not_enough_valid_words++;
       return false;
     }
 
     // Try to find a valid prompt+correct pair
-    const shuffledWords = [...validWords].sort(() => Math.random() - 0.5);
+    const shuffledWords = [...validWords].sort((a, b) => {
+      const aRecentlyPrompted = recentPromptWordIds.has(a.id) ? 1 : 0;
+      const bRecentlyPrompted = recentPromptWordIds.has(b.id) ? 1 : 0;
+      if (aRecentlyPrompted !== bRecentlyPrompted) {
+        return aRecentlyPrompted - bRecentlyPrompted;
+      }
+
+      return Math.random() - 0.5;
+    });
     let promptWord: LexicalWord | null = null;
     let correctWord: LexicalWord | null = null;
 
@@ -140,59 +321,7 @@ export async function buildSessionQuestions(
       return false;
     }
 
-    // Distractors
-    const getCompatibleGrammar = (grammar: string) => {
-      if (grammar === 'aditza') return ['aditza', 'aditz_esapidea'];
-      if (grammar === 'aditz_esapidea') return ['aditz_esapidea', 'aditza'];
-      if (grammar === 'adberbioa') return ['adberbioa', 'denbora_adberbioa'];
-      if (grammar === 'denbora_adberbioa') return ['denbora_adberbioa', 'adberbioa'];
-      if (grammar === 'lokailua') return ['lokailua', 'esapidea'];
-      if (grammar === 'esapidea') return ['esapidea', 'lokailua'];
-      return [grammar];
-    };
-
-    const compatibleGrammars = getCompatibleGrammar(group.grammar || '');
-
-    // Get all candidate words
-    const allCandidateWords = allGroups
-      .filter(g => g.is_active)
-      .flatMap(g => g.words.filter(w => w.status === 'egokia' || w.status === 'kontuz').map(w => ({ ...w, _groupId: g.id, _groupGrammar: g.grammar })))
-      .filter(w => (
-        w.word.toLowerCase() !== promptWord!.word.toLowerCase() && 
-        w.word.toLowerCase() !== correctWord!.word.toLowerCase()
-      ));
-
-    // Step 1: Exact grammar + different group
-    const distractors = allCandidateWords.filter(w => w._groupId !== group.id && w._groupGrammar === group.grammar);
-    
-    // Step 2: Compatible grammar if not enough
-    if (distractors.length < 3) {
-      const compatibleDistractors = allCandidateWords.filter(w => w._groupId !== group.id && compatibleGrammars.includes(w._groupGrammar || ''));
-      // Combine and unique
-      const seen = new Set(distractors.map(w => w.word.toLowerCase()));
-      for(const d of compatibleDistractors) {
-        if(!seen.has(d.word.toLowerCase())) {
-          seen.add(d.word.toLowerCase());
-          distractors.push(d);
-        }
-      }
-    }
-
-    // Step 3: Any safe group if STILL not enough
-    if (distractors.length < 3) {
-      const allSafeDistractors = allCandidateWords.filter(w => w._groupId !== group.id);
-      const seen = new Set(distractors.map(w => w.word.toLowerCase()));
-      for(const d of allSafeDistractors) {
-        if(!seen.has(d.word.toLowerCase())) {
-          seen.add(d.word.toLowerCase());
-          distractors.push(d);
-        }
-      }
-    }
-
-    // Shuffle and pick 3
-    const shuffledDistractors = distractors.sort(() => Math.random() - 0.5);
-    const selectedDistractors = shuffledDistractors.slice(0, 3);
+    const selectedDistractors = buildDistractorPool(group, promptWord, correctWord);
 
     if (selectedDistractors.length < 3) {
       discardedReasons.not_enough_distractors++;
@@ -284,26 +413,26 @@ export async function buildSessionQuestions(
   };
 
   if (mode === 'review') {
-    performPass(pool2, targetCount, false, true);
+    performPass(poolReview, targetCount, false, false);
     if (selectedQuestions.length < targetCount) {
-      performPass(pool4, targetCount, false, true);
+      performPass(poolLearningDue, targetCount, false, false);
+    }
+    if (selectedQuestions.length < targetCount) {
+      performPass(poolExplorationFallback, targetCount, false, false);
     }
   } else {
-    // 5-pass generation strategy
-    // Pass 1: Consolidation (allow repeat groupId)
-    performPass(poolConsolidation, 10, true, false);
-    
-    // Pass 2: Current level (unseen or learning)
-    performPass(pool1, 10, false, true);
-    
-    // Pass 3: Review
-    performPass(pool2, 10, false, true);
-    
-    // Pass 4: Challenge
-    performPass(pool3, 10, false, true);
-    
-    // Pass 5: Fallback to any safe group
-    performPass(pool4, 10, true, true);
+    // Balanced learning loop: overdue items first, then exploration, then light challenge.
+    performPass(poolReview, 2, false, false);
+    performPass(poolNewCurrentLevel, 8, false, false);
+    performPass(poolLevelExpansion, 4, false, false);
+    performPass(poolLearningDue, 1, false, false);
+    performPass(poolExplorationFallback, 10, false, false);
+    performPass(poolSoftExpansionFallback, 10, false, false);
+    performPass(poolEmergency, 10, false, false);
+
+    if (mode === 'main' && selectedQuestions.length < MIN_NORMAL_SESSION_QUESTIONS) {
+      performPass(poolEmergency, MIN_NORMAL_SESSION_QUESTIONS - selectedQuestions.length, true, true);
+    }
   }
 
   // Sanity check adjustments

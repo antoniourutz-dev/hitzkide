@@ -2,15 +2,75 @@ import { LexicalGroup } from '../types/lexical';
 
 const FAVORITES_KEY = 'hitzkideak_favorites';
 
+export const SESSION_STORAGE_KEYS = {
+  questions: 'hitzkideak_questions',
+  result: 'hitzkideak_result',
+  clozeResult: 'hitzkideak_cloze_result',
+  discourseResult: 'hitzkideak_discourse_result',
+} as const;
+
+function getStorageArea(type: 'local' | 'session'): globalThis.Storage | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    return type === 'local' ? window.localStorage : window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+function readJsonFromStorage<T>(type: 'local' | 'session', key: string): T | null {
+  const storage = getStorageArea(type);
+  if (!storage) return null;
+
+  const rawValue = storage.getItem(key);
+  if (!rawValue) return null;
+
+  try {
+    return JSON.parse(rawValue) as T;
+  } catch {
+    storage.removeItem(key);
+    return null;
+  }
+}
+
+function writeJsonToStorage(type: 'local' | 'session', key: string, value: unknown): boolean {
+  const storage = getStorageArea(type);
+  if (!storage) return false;
+
+  try {
+    storage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function removeStorageItem(type: 'local' | 'session', key: string): void {
+  const storage = getStorageArea(type);
+  if (!storage) return;
+
+  storage.removeItem(key);
+}
+
+export function readJsonFromSessionStorage<T>(key: string): T | null {
+  return readJsonFromStorage<T>('session', key);
+}
+
+export function writeJsonToSessionStorage(key: string, value: unknown): boolean {
+  return writeJsonToStorage('session', key, value);
+}
+
+export function removeSessionStorageItem(key: string): void {
+  removeStorageItem('session', key);
+}
+
 export const Storage = {
   getFavorites(): LexicalGroup[] {
-    const saved = localStorage.getItem(FAVORITES_KEY);
-    if (!saved) return [];
-    try {
-      return JSON.parse(saved);
-    } catch {
-      return [];
-    }
+    const favorites = readJsonFromStorage<LexicalGroup[]>('local', FAVORITES_KEY);
+    return Array.isArray(favorites) ? favorites : [];
   },
 
   toggleFavorite(group: LexicalGroup) {
@@ -21,7 +81,7 @@ export const Storage = {
     } else {
       favorites.splice(index, 1);
     }
-    localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
+    writeJsonToStorage('local', FAVORITES_KEY, favorites);
   },
 
   isFavorite(groupId: number): boolean {

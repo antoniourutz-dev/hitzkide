@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, User as UserIcon, RefreshCw, CheckCircle2, AlertCircle, LogOut } from 'lucide-react';
 import { playerService } from '../services/playerService';
 import { authService } from '../services/authService';
-import { PlayerProfile } from '../types/stats';
 import { useNavigate } from 'react-router-dom';
 import { User } from '@supabase/supabase-js';
+import { observabilityService } from '../analytics/observabilityService';
+import { usePlayerProfile } from '../hooks/usePlayerProfile';
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
@@ -17,7 +18,7 @@ function getErrorMessage(error: unknown): string {
 export default function ProfilePage() {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<PlayerProfile>(playerService.getProfile());
+  const profile = usePlayerProfile();
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'info' | 'login' | 'register'>('info');
 
@@ -27,74 +28,76 @@ export default function ProfilePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
+  const syncAuthenticatedProfile = useCallback(async (userId: string) => {
+    setIsSyncing(true);
+    try {
+      await playerService.synchronizeAuthenticatedProfile(userId);
+    } catch (error) {
+      observabilityService.captureError('profile.login_sync_failed', 'sync', error, {
+        userId,
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  }, []);
+
+  const startAuthenticatedProfileSync = useCallback((userId: string) => {
+    void syncAuthenticatedProfile(userId);
+  }, [syncAuthenticatedProfile]);
+
+  const loadUser = useCallback(async () => {
+    setLoading(true);
+    try {
+      const currentUser = await authService.getCurrentUser();
+
+      setUser(currentUser);
+      if (currentUser?.id) {
+        startAuthenticatedProfileSync(currentUser.id);
+      } else {
+        playerService.handleSignedOutState();
+      }
+    } catch (e) {
+      observabilityService.captureError('profile.load_user_failed', 'runtime', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [startAuthenticatedProfileSync]);
+
   useEffect(() => {
-    loadUser();
-    
+    void loadUser();
+
     // Subscribe to auth changes
-    const { data: { subscription } } = authService.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = authService.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUser(session.user);
-        await performLoginSync(session.user.id);
+        startAuthenticatedProfileSync(session.user.id);
       } else {
         setUser(null);
+        playerService.handleSignedOutState();
       }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [loadUser, startAuthenticatedProfileSync]);
 
-  const loadUser = async () => {
-    setLoading(true);
-    try {
-      const currentUser = await authService.getCurrentUser();
-      setUser(currentUser);
-      setProfile(playerService.getProfile());
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (user?.id && profile.syncStatus === 'auth_required' && !isSyncing) {
+      startAuthenticatedProfileSync(user.id);
     }
-  };
-
-  const performLoginSync = async (userId: string) => {
-    setIsSyncing(true);
-    try {
-      const localProfile = playerService.getProfile();
-      const cloudProfile = await playerService.loadProgressFromCloud(userId);
-      
-      if (!cloudProfile) {
-        // First time in cloud, upload local
-        await playerService.syncProgressToCloud(localProfile);
-      } else if (localProfile.stats.totalSessions === 0) {
-        // Local is empty, use cloud
-        playerService.saveProfile(cloudProfile, { markPending: false });
-      } else {
-        // Merge
-        const merged = playerService.mergeLocalAndCloudProgress(localProfile, cloudProfile);
-        playerService.saveProfile(merged);
-        await playerService.syncProgressToCloud(merged);
-      }
-      setProfile(playerService.getProfile());
-    } finally {
-      setIsSyncing(false);
-    }
-  };
+  }, [isSyncing, profile.syncStatus, startAuthenticatedProfileSync, user?.id]);
 
   const handleManualSync = async () => {
     setIsSyncing(true);
     try {
       if (user) {
-         const cloudProfile = await playerService.loadProgressFromCloud(user.id);
-         let localProfile = playerService.getProfile();
-         if (cloudProfile) {
-            localProfile = playerService.mergeLocalAndCloudProgress(localProfile, cloudProfile);
-            playerService.saveProfile(localProfile);
-         }
-         await playerService.syncProgressToCloud(localProfile);
-         setProfile(playerService.getProfile());
+         await playerService.synchronizeAuthenticatedProfile(user.id);
       }
+    } catch (error) {
+      observabilityService.captureError('profile.manual_sync_failed', 'sync', error, {
+        userId: user?.id,
+      });
     } finally {
       setIsSyncing(false);
     }
@@ -105,8 +108,18 @@ export default function ProfilePage() {
     setAuthError('');
     setIsSubmitting(true);
     try {
-      await authService.signInWithUsername(username, password);
+      const authResult = await authService.signInWithUsername(username, password);
+      const signedInUser = authResult.user ?? await authService.getCurrentUser();
+      if (!signedInUser) {
+        throw new Error('Saioa ezin izan da ireki. Saiatu berriro.');
+      }
+
+      setUser(signedInUser);
+      setUsername('');
+      setPassword('');
       setView('info');
+      startAuthenticatedProfileSync(signedInUser.id);
+      navigate('/');
     } catch (error) {
       setAuthError(getErrorMessage(error));
     } finally {
@@ -123,8 +136,18 @@ export default function ProfilePage() {
     }
     setIsSubmitting(true);
     try {
-      await authService.signUpWithUsername(username, password);
+      const authResult = await authService.signUpWithUsername(username, password);
+      const signedUpUser = authResult.user ?? await authService.getCurrentUser();
+      if (!signedUpUser) {
+        throw new Error('Kontua sortu da, baina saioa ez da ireki. Saiatu saioa hasten.');
+      }
+
+      setUser(signedUpUser);
+      setUsername('');
+      setPassword('');
       setView('info');
+      startAuthenticatedProfileSync(signedUpUser.id);
+      navigate('/');
     } catch (error) {
       setAuthError(getErrorMessage(error));
     } finally {
@@ -167,7 +190,7 @@ export default function ProfilePage() {
             {isLogin ? 'Saioa hasi' : 'Kontua sortu'}
           </h2>
           <p className="text-sm font-bold text-sky-600">
-            Zure aurrerapena gorde eta sinkronizatu
+            Hodeiko profila eta aurrerapen segurua aktibatu
           </p>
         </div>
 
@@ -238,7 +261,7 @@ export default function ProfilePage() {
       <div className="space-y-1">
           <h2 className="text-3xl font-black text-slate-800 tracking-tight">Nire profila</h2>
           <p className="text-sm font-bold text-slate-500">
-            {user ? 'Zure datuak hodeian gordeta daude.' : 'Gonbidatu gisa ari zara.'}
+            {user ? 'Zure aurrerapena Supabasen gordetzen da.' : 'Konturik gabe ezin dugu aurrerapena modu premiumean gorde.'}
           </p>
       </div>
 
@@ -251,7 +274,7 @@ export default function ProfilePage() {
         
         <div className="text-center">
            <h3 className="font-black text-xl text-slate-800">
-             {user ? (user.user_metadata?.username || user.user_metadata?.display_name || 'Gonbidatua') : 'Gonbidatua'}
+             {authService.getDisplayName(user)}
            </h3>
            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
              Maila: <span className="text-sky-600">{profile.currentLevel}</span>
@@ -261,7 +284,7 @@ export default function ProfilePage() {
         {!user && (
           <div className="w-full pt-4 space-y-3">
              <div className="text-center text-xs font-bold text-slate-500 mb-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                 Zure aurrerapena gailu honetan gordetzen da soilik.
+                 Premium moduan jokatzeko eta aurrerapena ez galtzeko, kontua behar duzu.
              </div>
              <button onClick={() => setView('login')} className="w-full py-3 bg-sky-500 text-white rounded-xl font-black hover:bg-sky-600 transition">
                  Saioa hasi
@@ -291,12 +314,22 @@ export default function ProfilePage() {
                         <CheckCircle2 size={16} className="text-emerald-500" />
                      ) : profile.syncStatus === 'error' ? (
                         <AlertCircle size={16} className="text-red-500" />
+                     ) : profile.syncStatus === 'auth_required' ? (
+                        <AlertCircle size={16} className="text-amber-500" />
                      ) : (
                         <RefreshCw size={16} className="text-sky-500" />
                      )}
                      <div className="flex flex-col">
                          <span className="text-xs font-bold text-slate-700">
-                             {profile.syncStatus === 'synced' ? 'Sinkronizatuta' : profile.syncStatus === 'error' ? 'Ezin izan da sinkronizatu' : 'Sinkronizatzeko zain'}
+                             {profile.syncStatus === 'synced'
+                               ? 'Sinkronizatuta'
+                               : profile.syncStatus === 'error'
+                                 ? 'Ezin izan da sinkronizatu'
+                                 : profile.syncStatus === 'auth_required'
+                                   ? (user ? 'Profila prestatzen' : 'Saioa behar da')
+                                   : profile.syncStatus === 'loading'
+                                     ? 'Profila kargatzen'
+                                     : 'Sinkronizatzeko zain'}
                          </span>
                          <span className="text-[9px] font-bold text-slate-400">
                              {profile.lastCloudSyncAt ? new Date(profile.lastCloudSyncAt).toLocaleString() : 'Sekula ez'}

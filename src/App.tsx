@@ -4,7 +4,12 @@ import { Home, BarChart2, List, User as UserIcon, BookOpen, WifiOff, X, Settings
 import { cn } from './lib/utils';
 import Layout from './components/Layout';
 import ReloadPrompt from './components/ReloadPrompt';
+import RequireStudentAuth from './components/RequireStudentAuth';
 import Toast, { ToastData } from './components/Toast';
+import { authService } from './services/authService';
+import { playerService } from './services/playerService';
+import { observabilityService } from './analytics/observabilityService';
+import { createClientId } from './lib/id';
 
 const HomePage = lazy(() => import('./pages/HomePage'));
 const DailyGamePage = lazy(() => import('./pages/DailyGamePage'));
@@ -20,11 +25,13 @@ const ClozeResultPage = lazy(() => import('./pages/ClozeResultPage'));
 const DiscourseClozeHomePage = lazy(() => import('./pages/DiscourseClozeHomePage'));
 const DiscourseClozeGamePage = lazy(() => import('./pages/DiscourseClozeGamePage'));
 const DiscourseClozeResultPage = lazy(() => import('./pages/DiscourseClozeResultPage'));
+const AdminCorpusCoveragePage = lazy(() => import('./pages/AdminCorpusCoveragePage'));
 
 function LoadingState() {
   return (
-    <div className="flex items-center justify-center min-h-[60vh]" role="status" aria-label="Kargatzen">
-      <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3" role="status" aria-live="polite">
+      <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Edukia prestatzen</p>
     </div>
   );
 }
@@ -32,11 +39,13 @@ function LoadingState() {
 function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
   const [toasts, setToasts] = useState<ToastData[]>([]);
 
   const addToast = useCallback((message: string, type: ToastData['type'] = 'info') => {
-    const id = Math.random().toString(36).substring(2);
+    const id = createClientId('toast');
     setToasts(prev => [...prev, { id, message, type }]);
   }, []);
 
@@ -52,6 +61,58 @@ function AppContent() {
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    const synchronizeProfile = async (userId?: string) => {
+      if (!userId) {
+        return;
+      }
+
+      try {
+        await playerService.synchronizeAuthenticatedProfile(userId);
+      } catch (error) {
+        observabilityService.captureError('profile.bootstrap_sync_failed', 'sync', error, {
+          userId,
+        });
+      }
+    };
+
+    const startProfileSynchronization = (userId?: string) => {
+      void synchronizeProfile(userId);
+    };
+
+    const bootstrapProfile = async () => {
+      try {
+        const currentUser = await authService.getCurrentUser().catch(() => null);
+        if (currentUser?.id) {
+          startProfileSynchronization(currentUser.id);
+        } else {
+          playerService.handleSignedOutState();
+        }
+      } catch (error) {
+        observabilityService.captureError('profile.bootstrap_failed', 'runtime', error);
+        playerService.handleSignedOutState();
+      }
+    };
+
+    void bootstrapProfile();
+
+    const { data: { subscription } } = authService.onAuthStateChange((event, session) => {
+      if (event === 'INITIAL_SESSION') {
+        return;
+      }
+
+      if (session?.user) {
+        startProfileSynchronization(session.user.id);
+      } else {
+        playerService.handleSignedOutState();
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
     };
   }, []);
 
@@ -98,16 +159,18 @@ function AppContent() {
           <button
             onClick={() => navigate('/')}
             className="p-2 -mr-2 text-slate-500 hover:text-red-500 transition-colors"
+            aria-label="Jokoa utzi eta hasierara itzuli"
           >
-            <X size={20} />
+            <X size={20} aria-hidden="true" />
           </button>
         )}
         {!isGame && location.pathname === '/' && (
           <button
             onClick={() => navigate('/settings')}
             className="p-2 text-slate-500 hover:text-emerald-500 transition-colors"
+            aria-label="Ezarpenak ireki"
           >
-            <Settings size={20} />
+            <Settings size={20} aria-hidden="true" />
           </button>
         )}
       </div>
@@ -145,20 +208,21 @@ function AppContent() {
       <Layout header={header} footer={footer}>
         <Suspense fallback={<LoadingState />}>
           <Routes>
-            <Route path="/" element={<HomePage onToast={addToast} />} />
-            <Route path="/game/:mode" element={<DailyGamePage onToast={addToast} />} />
-            <Route path="/results" element={<SessionResultPage onToast={addToast} />} />
-            <Route path="/stats" element={<StatsPage />} />
-            <Route path="/favorites" element={<FavoritesPage />} />
-            <Route path="/review" element={<ReviewPage />} />
+            <Route path="/" element={<RequireStudentAuth><HomePage onToast={addToast} /></RequireStudentAuth>} />
+            <Route path="/game/:mode" element={<RequireStudentAuth><DailyGamePage onToast={addToast} /></RequireStudentAuth>} />
+            <Route path="/results" element={<RequireStudentAuth><SessionResultPage onToast={addToast} /></RequireStudentAuth>} />
+            <Route path="/stats" element={<RequireStudentAuth><StatsPage /></RequireStudentAuth>} />
+            <Route path="/favorites" element={<RequireStudentAuth><FavoritesPage /></RequireStudentAuth>} />
+            <Route path="/review" element={<RequireStudentAuth><ReviewPage /></RequireStudentAuth>} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/cloze" element={<ClozeSelectionPage />} />
-            <Route path="/cloze/:size" element={<ClozeGamePage />} />
-            <Route path="/cloze/results" element={<ClozeResultPage />} />
-            <Route path="/discourse" element={<DiscourseClozeHomePage />} />
-            <Route path="/discourse/:size/:mode" element={<DiscourseClozeGamePage />} />
-            <Route path="/discourse/results" element={<DiscourseClozeResultPage />} />
+            <Route path="/cloze" element={<RequireStudentAuth><ClozeSelectionPage /></RequireStudentAuth>} />
+            <Route path="/cloze/:size" element={<RequireStudentAuth><ClozeGamePage /></RequireStudentAuth>} />
+            <Route path="/cloze/results" element={<RequireStudentAuth><ClozeResultPage /></RequireStudentAuth>} />
+            <Route path="/discourse" element={<RequireStudentAuth><DiscourseClozeHomePage /></RequireStudentAuth>} />
+            <Route path="/discourse/:size/:mode" element={<RequireStudentAuth><DiscourseClozeGamePage /></RequireStudentAuth>} />
+            <Route path="/discourse/results" element={<RequireStudentAuth><DiscourseClozeResultPage /></RequireStudentAuth>} />
+            <Route path="/admin/corpus-coverage" element={<RequireStudentAuth><AdminCorpusCoveragePage /></RequireStudentAuth>} />
           </Routes>
         </Suspense>
       </Layout>

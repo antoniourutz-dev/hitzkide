@@ -154,4 +154,116 @@ describe('questionService', () => {
     expect(result.generatedCount).toBeGreaterThan(0);
     expect(result.discardedReasons.invalid_question_type).toBeGreaterThan(0);
   });
+
+  it('prefers unseen current-level groups over mastered groups in normal sessions', async () => {
+    const groups = Array.from({ length: 24 }, (_, index) => createGroup(index + 1));
+    const profile = createProfile({
+      groupMastery: Object.fromEntries(
+        groups.slice(0, 12).map((group) => [
+          group.id,
+          {
+            timesSeen: 8,
+            timesCorrect: 8,
+            timesWrong: 0,
+            masteryScore: 5,
+            status: 'mastered',
+            lastSeenAt: '2026-05-06T10:00:00.000Z',
+            nextReviewAt: '2026-06-06T10:00:00.000Z',
+            correctStreak: 8,
+            wrongStreak: 0,
+          },
+        ])
+      ),
+    });
+
+    const result = await buildSessionQuestions(groups, profile, 'main');
+
+    expect(result.generatedCount).toBe(10);
+    expect(result.questions.every((question) => question.groupId > 12)).toBe(true);
+  });
+
+  it('avoids recently seen groups when there is enough fresh material', async () => {
+    const groups = Array.from({ length: 30 }, (_, index) => createGroup(index + 1));
+    const profile = createProfile({
+      recentAnswers: groups.slice(0, 10).map((group, index) => ({
+        isCorrect: true,
+        level: 'B1',
+        playerLevelAtAnswer: 'B1',
+        contentLevel: 'B1',
+        groupId: group.id,
+        promptWordId: group.id * 10 + 1,
+        correctWordId: group.id * 10 + 2,
+        selectedWordId: group.id * 10 + 2,
+        answeredAt: `2026-05-06T10:${String(index).padStart(2, '0')}:00.000Z`,
+      })),
+    });
+
+    const result = await buildSessionQuestions(groups, profile, 'main');
+
+    expect(result.generatedCount).toBe(10);
+    expect(result.questions.every((question) => question.groupId > 10)).toBe(true);
+  });
+
+  it('does not pull very recent due items into normal sessions when fresh content exists', async () => {
+    const reviewGroups = Array.from({ length: 4 }, (_, index) => createGroup(index + 1));
+    const freshGroups = Array.from({ length: 14 }, (_, index) => createGroup(index + 10));
+    const profile = createProfile({
+      groupMastery: Object.fromEntries(
+        reviewGroups.map((group) => [
+          group.id,
+          {
+            timesSeen: 2,
+            timesCorrect: 2,
+            timesWrong: 0,
+            masteryScore: 2,
+            status: 'learning',
+            lastSeenAt: '2026-05-06T10:00:00.000Z',
+            nextReviewAt: '2026-05-06T11:00:00.000Z',
+            correctStreak: 2,
+            wrongStreak: 0,
+          },
+        ])
+      ),
+      recentAnswers: reviewGroups.map((group, index) => ({
+        isCorrect: true,
+        level: 'B1',
+        playerLevelAtAnswer: 'B1',
+        contentLevel: 'B1',
+        groupId: group.id,
+        promptWordId: group.id * 10 + 1,
+        correctWordId: group.id * 10 + 2,
+        selectedWordId: group.id * 10 + 2,
+        answeredAt: `2026-05-06T12:${String(index).padStart(2, '0')}:00.000Z`,
+      })),
+    });
+
+    const result = await buildSessionQuestions([...reviewGroups, ...freshGroups], profile, 'main');
+
+    expect(result.generatedCount).toBe(10);
+    expect(result.questions.every((question) => question.groupId >= 10)).toBe(true);
+  });
+
+  it('expands into new next-level material before repeating very recent current-level groups', async () => {
+    const currentLevelGroups = Array.from({ length: 8 }, (_, index) => createGroup(index + 1));
+    const nextLevelGroups = Array.from({ length: 8 }, (_, index) => createGroup(index + 20, { reviewed_level: 'B2' }));
+    const profile = createProfile({
+      recentAnswers: currentLevelGroups.map((group, index) => ({
+        isCorrect: true,
+        level: 'B1',
+        playerLevelAtAnswer: 'B1',
+        contentLevel: 'B1',
+        groupId: group.id,
+        promptWordId: group.id * 10 + 1,
+        correctWordId: group.id * 10 + 2,
+        selectedWordId: group.id * 10 + 2,
+        answeredAt: `2026-05-06T13:${String(index).padStart(2, '0')}:00.000Z`,
+      })),
+    });
+
+    const result = await buildSessionQuestions([...currentLevelGroups, ...nextLevelGroups], profile, 'main');
+
+    expect(result.generatedCount).toBeGreaterThanOrEqual(5);
+    expect(result.questions.some((question) => question.level === 'B2')).toBe(true);
+    expect(result.questions.every((question) => question.groupId >= 20)).toBe(true);
+  });
 });

@@ -22,34 +22,21 @@ cp .env.example .env.local
 npm run dev
 ```
 
-`Supabase` konfigurazioa aukerakoa da garapenean: kredentzialik gabe aplikazioa tokiko egoerarekin eta offline moduan abiatu daiteke.
+`Supabase` konfigurazioa beharrezkoa da cloud profila, autentikazioa eta aurrerapen iraunkorra aktibatzeko.
 
 ---
 
 ## ⚙️ Requirements
 
 - **Node.js** 18+
-- **Supabase** backend (optional in local development, required for cloud sync)
-- **Gemini API key** (optional, server-side only)
+- **Supabase** backend
 
 ### Environment Variables
 
 ```env
 VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-# Optional client-side pointer to the deployed proxy
-VITE_GEMINI_PROXY_URL=https://your-project.vercel.app/api/gemini
-
-# Server-side only, configured in Vercel
-GEMINI_API_KEY=your_gemini_api_key
 ```
-
-### Gemini Proxy
-
-- The client must never embed the Gemini API key.
-- Requests go through `api/gemini` as a Vercel Edge Function.
-- In local development, you can leave `VITE_GEMINI_PROXY_URL` unset and use the same-origin `/api/gemini` route when AI features are wired in.
-- If AI features are not enabled, Gemini variables can be omitted entirely.
 
 ---
 
@@ -72,6 +59,8 @@ GEMINI_API_KEY=your_gemini_api_key
 ```
 src/
 ├── components/       # Reusable UI components
+├── analytics/        # Runtime observability & usage metrics
+├── config/           # Build and release metadata
 ├── pages/           # Route pages
 ├── services/        # Business logic & API
 ├── types/          # TypeScript definitions
@@ -92,7 +81,7 @@ src/
 - **Estatistikak** - Progress tracking & analytics
 - **Gogokoak** - Favorite word groups
 - **Mailak** - Level progression (B1 → B2 → C1 → C2 → Aditua)
-- **Cloud sync** - Progress sync via Supabase
+- **Cloud sync** - Progress and profile persistence via Supabase
 
 ---
 
@@ -105,8 +94,19 @@ npm run preview      # Preview production build
 npm run clean        # Remove dist/ in a cross-platform way
 npm run lint         # TypeScript check
 npm run lint:eslint  # ESLint on src/
+npm run lint:all     # TS + ESLint
 npm run test:run     # Run tests once
+npm run test:coverage
 ```
+
+---
+
+## 🧭 Operational Docs
+
+- [Premium architecture](docs/architecture-premium.md)
+- [Supabase contract](docs/supabase.md)
+
+CI is defined in `.github/workflows/ci.yml` and runs typecheck, ESLint, tests, and production build on pushes and pull requests.
 
 ---
 

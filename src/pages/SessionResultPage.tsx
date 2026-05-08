@@ -1,13 +1,26 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, Award, RefreshCw, Home, BookOpen, ChevronRight } from 'lucide-react';
 import { SessionResult, MasteryStatus } from '../types/stats';
 import { playerService } from '../services/playerService';
 import { useNavigate } from 'react-router-dom';
+import {
+  SESSION_STORAGE_KEYS,
+  readJsonFromSessionStorage,
+  removeSessionStorageItem,
+} from '../lib/storage';
+import { getConceptLabel } from '../utils/labels';
 
 interface SessionResultPageProps {
   onToast?: (message: string, type?: 'success' | 'info' | 'warning' | 'achievement') => void;
 }
+
+type StoredResultPayload = {
+  score: number;
+  answers: SessionResult['answers'];
+  questions: SessionResult['questions'];
+  mode?: string;
+};
 
 const STATUS_LABELS: Record<MasteryStatus, string> = {
   new: 'Berria',
@@ -22,34 +35,103 @@ export default function SessionResultPage({ onToast: _onToast }: SessionResultPa
   const navigate = useNavigate();
   const [showDetails, setShowDetails] = useState(false);
   const [result, setResult] = useState<SessionResult | null>(null);
+  const [storedResult, setStoredResult] = useState<StoredResultPayload | null>(null);
+  const [isPersisting, setIsPersisting] = useState(false);
+  const [syncError, setSyncError] = useState<'auth_required' | 'sync_failed' | null>(null);
   const hasProcessed = useRef(false);
-  const progress = playerService.calculateLevelProgress();
+
+  const persistStoredResult = useCallback(async (payload: StoredResultPayload) => {
+    if (hasProcessed.current) return;
+
+    hasProcessed.current = true;
+    setIsPersisting(true);
+    setSyncError(null);
+
+    try {
+      const processedResult = await playerService.finalizeSession(
+        payload.score,
+        payload.questions,
+        payload.answers,
+        payload.mode
+      );
+      setResult(processedResult);
+      removeSessionStorageItem(SESSION_STORAGE_KEYS.result);
+      removeSessionStorageItem(SESSION_STORAGE_KEYS.questions);
+    } catch (error) {
+      hasProcessed.current = false;
+      setSyncError(error instanceof Error && error.message === 'auth_required' ? 'auth_required' : 'sync_failed');
+    } finally {
+      setIsPersisting(false);
+    }
+  }, []);
 
   useEffect(() => {
-    if (hasProcessed.current) return;
-    
-    const stored = sessionStorage.getItem('hitzkideak_result');
+    const stored = readJsonFromSessionStorage<StoredResultPayload>(SESSION_STORAGE_KEYS.result);
+
     if (stored) {
-      hasProcessed.current = true;
-      const data = JSON.parse(stored);
-      const { score, answers, questions, mode } = data;
-      const processedResult = playerService.updateSession(score, questions, answers, mode);
-      setResult(processedResult);
-      sessionStorage.removeItem('hitzkideak_result');
-      sessionStorage.removeItem('hitzkideak_questions');
+      setStoredResult(stored);
     } else {
       navigate('/');
     }
   }, [navigate]);
 
-  if (!result) {
+  useEffect(() => {
+    if (!storedResult || result || isPersisting || hasProcessed.current) {
+      return;
+    }
+
+    void persistStoredResult(storedResult);
+  }, [isPersisting, persistStoredResult, result, storedResult]);
+
+  if (!result && syncError) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+      <div className="p-6 space-y-5">
+        <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-700">Sinkronizazioa behar da</p>
+          <p className="mt-2 text-sm font-semibold leading-relaxed">
+            {syncError === 'auth_required'
+              ? 'Saioa berriro hasi behar duzu partida hau Supabasen gordetzeko.'
+              : 'Ezin izan dugu partida hau Supabasen gorde. Saiatu berriro konexioa egonkorra denean.'}
+          </p>
+        </div>
+        <div className="space-y-3">
+          <button
+            onClick={() => storedResult && void persistStoredResult(storedResult)}
+            className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black"
+          >
+            Berriro saiatu
+          </button>
+          {syncError === 'auth_required' && (
+            <button
+              onClick={() => navigate('/profile')}
+              className="w-full py-4 bg-sky-50 text-sky-700 rounded-2xl font-black border border-sky-200"
+            >
+              Saioa hasi
+            </button>
+          )}
+          <button
+            onClick={() => navigate('/')}
+            className="w-full py-4 bg-slate-100 text-slate-700 rounded-2xl font-black"
+          >
+            Hasierara itzuli
+          </button>
+        </div>
       </div>
     );
   }
 
+  if (!result) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Supabasen gordetzen</p>
+        </div>
+      </div>
+    );
+  }
+
+  const progress = playerService.calculateLevelProgress();
   const percentage = Math.round((result.score / result.total) * 100);
 
   const getMessage = (s: number, t: number) => {
@@ -121,7 +203,7 @@ export default function SessionResultPage({ onToast: _onToast }: SessionResultPa
                      change.newStatus === 'learning' ? <RefreshCw size={16} /> :
                      <BookOpen size={16} />}
                   </div>
-                  <span className="text-sm font-bold text-slate-700">{change.concept}</span>
+                  <span className="text-sm font-bold text-slate-700">{getConceptLabel(change.concept)}</span>
                 </div>
                 <div className="flex items-center gap-2 text-[10px]">
                   <span className="text-slate-400">{STATUS_LABELS[change.oldStatus]}</span>

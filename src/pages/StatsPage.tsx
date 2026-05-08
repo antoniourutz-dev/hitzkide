@@ -6,13 +6,14 @@ import { fetchGameData } from '../services/lexicalService';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { useNavigate } from 'react-router-dom';
+import { usePlayerProfile } from '../hooks/usePlayerProfile';
 
 export default function StatsPage() {
   const navigate = useNavigate();
   const [showRequirements, setShowRequirements] = useState(false);
   const [synonymsPerLevel, setSynonymsPerLevel] = useState<Record<string, number>>({});
   
-  const profile = playerService.getProfile();
+  const profile = usePlayerProfile();
   const mastery = playerService.getMasteryCounts();
 
   useEffect(() => {

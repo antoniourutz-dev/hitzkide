@@ -2,76 +2,160 @@
 <html lang="eu">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#10b981">
-  <title>Hitzkideak - Konexiorik gabe</title>
+  <title>Hitzkideak - Offline</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: system-ui, -apple-system, sans-serif;
-      background: #f1f5f9;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top, rgba(16, 185, 129, 0.16), transparent 38%),
+        linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
       min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 1rem;
+      padding: 24px;
+      color: #0f172a;
     }
-    .container {
-      text-align: center;
-      max-width: 400px;
+    .shell {
+      width: min(100%, 460px);
+      background: rgba(255, 255, 255, 0.96);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 28px;
+      padding: 28px;
+      box-shadow: 0 28px 80px rgba(15, 23, 42, 0.10);
+      backdrop-filter: blur(18px);
+    }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: #ecfdf5;
+      color: #047857;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
     }
     .icon {
-      width: 80px;
-      height: 80px;
-      background: #fef2f2;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0 auto 1.5rem;
+      width: 88px;
+      height: 88px;
+      margin: 20px 0 18px;
+      border-radius: 24px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, #111827, #0f766e);
+      box-shadow: 0 20px 44px rgba(15, 118, 110, 0.18);
     }
     .icon svg {
-      width: 40px;
-      height: 40px;
-      color: #ef4444;
+      width: 42px;
+      height: 42px;
+      color: white;
     }
     h1 {
-      font-size: 1.5rem;
+      font-size: clamp(1.8rem, 5vw, 2.3rem);
+      line-height: 1;
+      letter-spacing: -0.04em;
       font-weight: 900;
-      color: #1e293b;
-      margin-bottom: 0.5rem;
+      margin-bottom: 12px;
     }
     p {
-      color: #64748b;
-      margin-bottom: 1.5rem;
-      line-height: 1.5;
+      color: #475569;
+      line-height: 1.65;
+      font-size: 0.98rem;
+    }
+    .note {
+      margin-top: 18px;
+      padding: 16px 18px;
+      border-radius: 18px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      color: #334155;
+      font-size: 0.94rem;
+      line-height: 1.55;
+    }
+    .actions {
+      display: grid;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    button, a {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-height: 52px;
+      padding: 14px 18px;
+      border-radius: 18px;
+      font-size: 0.95rem;
+      font-weight: 800;
+      text-decoration: none;
+      transition: transform 0.16s ease, background 0.16s ease, color 0.16s ease;
     }
     button {
-      background: #10b981;
-      color: white;
       border: none;
-      padding: 1rem 2rem;
-      font-size: 1rem;
-      font-weight: 700;
-      border-radius: 1rem;
+      background: #111827;
+      color: white;
       cursor: pointer;
-      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
     }
     button:hover {
-      background: #059669;
+      background: #0f172a;
+      transform: translateY(-1px);
+    }
+    a {
+      border: 1px solid #cbd5e1;
+      background: white;
+      color: #0f172a;
+    }
+    a:hover {
+      background: #f8fafc;
+    }
+    .status {
+      margin-top: 14px;
+      color: #64748b;
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="icon">
+  <main class="shell" aria-labelledby="offline-title">
+    <div class="eyebrow">Hitzkideak Premium</div>
+    <div class="icon" aria-hidden="true">
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a1 1 0 111.414 1.414m-1.414-1.414L3 3m8.293 8.293l1.414 1.414" />
       </svg>
     </div>
-    <h1>Konexiorik gabe</h1>
-    <p>Ez duzu internet konexiorik. Mesedez, egiaztatu zure konexioa eta saiatu berriro.</p>
-    <button onclick="window.location.reload()">Berriro saiatu</button>
-  </div>
+    <h1 id="offline-title">Konexiorik gabe zaude</h1>
+    <p>
+      Aplikazioa zure gailuan instalatuta jarraitzen du, baina orri hau berriro kargatzeko edo eduki berria eskuratzeko konexioa behar dugu.
+    </p>
+    <div class="note">
+      Aurrez gordetako saioak, aurrerapena eta cacheko edukia berriro aplikaziora itzultzean erabilgarri egon daitezke. Sare-konexioa itzultzen denean, sinkronizazioa automatikoki berrabiaraziko da.
+    </div>
+    <div class="actions">
+      <button onclick="window.location.reload()">Berriro saiatu</button>
+      <a href="/">Hasierara joan</a>
+    </div>
+    <p id="network-status" class="status" aria-live="polite">Sarearen zain</p>
+  </main>
+  <script>
+    const status = document.getElementById('network-status');
+    function updateStatus() {
+      status.textContent = navigator.onLine ? 'Konexioa berreskuratuta' : 'Sarearen zain';
+      // if (navigator.onLine) {
+      //   window.location.replace('/');
+      // }
+    }
+    window.addEventListener('online', updateStatus);
+    window.addEventListener('offline', updateStatus);
+    updateStatus();
+  </script>
 </body>
 </html>

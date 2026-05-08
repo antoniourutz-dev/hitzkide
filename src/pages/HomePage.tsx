@@ -1,6 +1,6 @@
 import { Play, TrendingUp, Heart, BookOpen, ChevronRight, Zap, RefreshCw, List } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { fetchGameData } from '../services/lexicalService';
+import { fetchGameData, hasCachedGameData } from '../services/lexicalService';
 import { buildSessionQuestions } from '../services/questionService';
 import { playerService } from '../services/playerService';
 import { useState, useEffect } from 'react';
@@ -10,6 +10,9 @@ import { ToastData } from '../components/Toast';
 import { User } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/authService';
+import { observabilityService } from '../analytics/observabilityService';
+import { usePlayerProfile } from '../hooks/usePlayerProfile';
+import { SESSION_STORAGE_KEYS, writeJsonToSessionStorage } from '../lib/storage';
 
 interface HomePageProps {
   onToast?: (message: string, type?: ToastData['type']) => void;
@@ -19,7 +22,8 @@ export default function HomePage({ onToast }: HomePageProps) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [profile, setProfile] = useState(playerService.getProfile());
+  const [hasOfflineData, setHasOfflineData] = useState(() => hasCachedGameData());
+  const profile = usePlayerProfile();
   const [user, setUser] = useState<User | null>(null);
   const [showLevelUp, setShowLevelUp] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
@@ -27,31 +31,85 @@ export default function HomePage({ onToast }: HomePageProps) {
   const [miniSessionMessage, setMiniSessionMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+    const syncConnectivityState = () => {
+      setIsOnline(window.navigator.onLine);
+      setHasOfflineData(hasCachedGameData());
+    };
 
+    syncConnectivityState();
+    window.addEventListener('online', syncConnectivityState);
+    window.addEventListener('offline', syncConnectivityState);
+
+    authService.getCurrentUser().then(setUser);
+    const { data: { subscription } } = authService.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => {
+      window.removeEventListener('online', syncConnectivityState);
+      window.removeEventListener('offline', syncConnectivityState);
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const redirectToProfileForCloudProgress = (featureLabel: string) => {
+    observabilityService.trackEvent('profile.auth_required_for_feature', 'runtime', {
+      feature: featureLabel,
+    }, 'warning');
+    onToast?.('Aurrerapena hodeian gordetzeko, lehenengo saioa hasi behar duzu.', 'warning');
+    navigate('/profile');
+  };
+
+  useEffect(() => {
     if (profile.lastLevelUp && !profile.lastLevelUp.seen) {
       setShowLevelUp(true);
     }
-
-    authService.getCurrentUser().then(setUser);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, [profile]);
+  }, [profile.lastLevelUp]);
 
   const handlePlay = async (mode: 'main' | 'quick' | 'review') => {
-    if (!isOnline) return;
+    if (!user) {
+      observabilityService.trackFeatureUsage('synonym', mode, 'failed', {
+        reason: 'auth_required',
+      });
+      redirectToProfileForCloudProgress(`synonym:${mode}`);
+      return;
+    }
+
+    observabilityService.trackFeatureUsage('synonym', mode, 'requested', {
+      online: isOnline,
+      hasOfflineData,
+    });
+
+    if (!isOnline && !hasOfflineData) {
+      observabilityService.trackFeatureUsage('synonym', mode, 'failed', {
+        reason: 'offline_without_cached_content',
+      });
+      onToast?.('Konexiorik gabe zaude, eta oraindik ez dugu edukirik gorde gailu honetan.', 'warning');
+      return;
+    }
+
     setLoading(true);
     setNotEnoughQuestions(false);
+
     try {
+      if (!isOnline && hasOfflineData) {
+        onToast?.('Konexiorik gabe zaude: aurrez gordetako edukia erabiliko dugu.', 'info');
+      }
+
       const allGroups = await fetchGameData();
+      setHasOfflineData(hasCachedGameData());
+
       if (!allGroups || allGroups.length === 0) {
-        onToast?.('Datuak ezin izan dira kargatu. Mesedez, ziurtatu konexioa ondo dagoela.', 'warning');
+        observabilityService.trackFeatureUsage('synonym', mode, 'failed', {
+          reason: 'no_groups_available',
+          online: isOnline,
+        });
+        onToast?.(
+          isOnline
+            ? 'Datuak ezin izan dira kargatu. Mesedez, ziurtatu konexioa ondo dagoela.'
+            : 'Konexiorik gabe zaude, eta oraindik ez dago nahikoa edukirik gordeta saioa sortzeko.',
+          'warning'
+        );
         setLoading(false);
         return;
       }
@@ -64,25 +122,44 @@ export default function HomePage({ onToast }: HomePageProps) {
       if (mode === 'review' && generatedCount < 3) shouldNotStart = true;
 
       if (shouldNotStart) {
+        observabilityService.trackFeatureUsage('synonym', mode, 'failed', {
+          reason: 'not_enough_questions',
+          generatedCount,
+        });
         setNotEnoughQuestions(true);
         setLoading(false);
       } else {
+        observabilityService.trackFeatureUsage('synonym', mode, 'started', {
+          generatedCount,
+          compactSession: generatedCount < 5,
+        });
         if (generatedCount < 5 && (mode === 'main' || mode === 'quick')) {
             setMiniSessionMessage("Saio laburra sortu dugu. Galdera gutxiago, baina erabilgarriak.");
             setTimeout(() => {
-                sessionStorage.setItem('hitzkideak_questions', JSON.stringify(questions));
+                writeJsonToSessionStorage(SESSION_STORAGE_KEYS.questions, questions);
                 navigate(`/game/${mode}`);
                 setLoading(false);
             }, 2000);
         } else {
-            sessionStorage.setItem('hitzkideak_questions', JSON.stringify(questions));
+            writeJsonToSessionStorage(SESSION_STORAGE_KEYS.questions, questions);
             navigate(`/game/${mode}`);
             setLoading(false);
         }
       }
     } catch (error) {
-      console.error('Error starting game:', error);
-      onToast?.('Akats bat gertatu da jokoa kargatzean.', 'warning');
+      observabilityService.captureError('session.start_failed', 'session', error, {
+        feature: 'synonym',
+        mode,
+      });
+      observabilityService.trackFeatureUsage('synonym', mode, 'failed', {
+        reason: 'unexpected_error',
+      });
+      onToast?.(
+        isOnline
+          ? 'Akats bat gertatu da jokoa kargatzean.'
+          : 'Konexiorik gabe zaude, eta ezin izan dugu gordetako edukia prestatu.',
+        'warning'
+      );
     } finally {
       setLoading(false);
     }
@@ -90,7 +167,6 @@ export default function HomePage({ onToast }: HomePageProps) {
 
   const handleCloseLevelUp = () => {
     playerService.acknowledgeLevelUp();
-    setProfile(playerService.getProfile());
     setShowLevelUp(false);
   };
 
@@ -103,6 +179,7 @@ export default function HomePage({ onToast }: HomePageProps) {
   const reqReview = progress.missingRequirements.find(r => r.label === 'Berrikusteko')?.isMet;
   const reqMastery = progress.missingRequirements.find(r => r.label === 'Ezagutza')?.isMet;
   const knowledgeGap = reqQuestions && reqAccuracy && reqReview && !reqMastery;
+  const synonymPlayDisabled = loading || (!isOnline && !hasOfflineData);
 
   const getMoto = (p: number, prog: import('../types/stats').LevelProgress) => {
     if (knowledgeGap) return "Ia prest zaude: talde batzuk gehiago sendotu behar dituzu.";
@@ -153,6 +230,8 @@ export default function HomePage({ onToast }: HomePageProps) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             className="fixed top-20 left-4 right-4 z-50 bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl shadow-lg text-center"
+            role="status"
+            aria-live="polite"
           >
             <p className="text-xs font-bold">{miniSessionMessage}</p>
           </motion.div>
@@ -163,7 +242,7 @@ export default function HomePage({ onToast }: HomePageProps) {
       <div className="flex justify-between items-center px-1">
          <div className="flex flex-col">
             <span className="text-xl font-black text-slate-800 tracking-tight">
-               {user ? `Kaixo, ${user.user_metadata?.username || user.user_metadata?.display_name || 'Erabiltzaile'}` : 'Kaixo, Gonbidatua'}
+               {user ? `Kaixo, ${authService.getDisplayName(user)}` : 'Kaixo, Gonbidatua'}
             </span>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 flex items-center gap-1">
                {user && profile.syncStatus === 'synced' ? (
@@ -172,12 +251,45 @@ export default function HomePage({ onToast }: HomePageProps) {
                  <><div className="w-1.5 h-1.5 rounded-full bg-sky-500"></div> Sinkronizatzeko zain</>
                ) : user && profile.syncStatus === 'error' ? (
                  <><div className="w-1.5 h-1.5 rounded-full bg-red-500"></div> Sinkronizazio errorea</>
+               ) : user && profile.syncStatus === 'auth_required' ? (
+                 <><div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div> Profila prestatzen</>
+               ) : user && profile.syncStatus === 'loading' ? (
+                 <><div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div> Profila kargatzen</>
                ) : (
-                 'Aurrerapena gailu honetan gordeta'
+                 'Saioa hasi hodeiko aurrerapena aktibatzeko'
                )}
             </span>
          </div>
       </div>
+
+      {!user && (
+        <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sky-900" role="status" aria-live="polite">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-sky-700">Premium profila</p>
+          <p className="mt-1 text-sm font-semibold leading-relaxed">
+            Aurrerapena ez galtzeko, saioa hasi edo kontua sortu. Joko saioak Supabasen gordeko ditugu.
+          </p>
+        </div>
+      )}
+
+      {!isOnline && (
+        <div
+          className={cn(
+            "rounded-2xl border p-4",
+            hasOfflineData ? "bg-emerald-50 border-emerald-200 text-emerald-900" : "bg-amber-50 border-amber-200 text-amber-900"
+          )}
+          role="status"
+          aria-live="polite"
+        >
+          <p className="text-[10px] font-black uppercase tracking-[0.2em]">
+            {hasOfflineData ? 'Offline prest' : 'Konexiorik gabe'}
+          </p>
+          <p className="mt-1 text-sm font-semibold leading-relaxed">
+            {hasOfflineData
+              ? 'Aurreko saioetan gordetako edukiarekin jokatu dezakezu. Sinkronizazioa berriro konektatzean egingo da.'
+              : 'Aplikazioa zure gailuan dago, baina lehenengo edukia konektatuta kargatu behar dugu sinonimo saio berriak sortzeko.'}
+          </p>
+        </div>
+      )}
 
       {/* Progress Card */}
       <div className="card p-4 bg-white border-slate-100 shadow-sm space-y-3">
@@ -240,19 +352,19 @@ export default function HomePage({ onToast }: HomePageProps) {
       <div className="grid grid-cols-1 gap-4">
         <button
           onClick={() => handlePlay('main')}
-          disabled={loading}
-          className="group relative h-14 bg-emerald-500 rounded-2xl overflow-hidden shadow-lg shadow-emerald-100 active:scale-[0.98] transition-all disabled:opacity-50"
+          disabled={synonymPlayDisabled}
+          className="group relative h-14 bg-emerald-500 rounded-2xl overflow-hidden shadow-lg shadow-emerald-100 active:scale-[0.98] transition-all disabled:opacity-50 disabled:shadow-none"
         >
           <div className="flex items-center justify-center gap-2 relative z-10 w-full h-full text-white">
             <span className="text-xl font-black tracking-tight uppercase">Jokatu</span>
             <div className="w-5 flex items-center justify-center">
-               {loading ? <RefreshCw size={20} className="animate-spin" /> : <Play size={20} fill="currentColor" />}
+               {loading ? <RefreshCw size={20} className="animate-spin" aria-hidden="true" /> : <Play size={20} fill="currentColor" aria-hidden="true" />}
             </div>
           </div>
         </button>
 
         <button
-          onClick={() => navigate('/cloze')}
+          onClick={() => user ? navigate('/cloze') : redirectToProfileForCloudProgress('cloze')}
           className="group card flex items-center justify-between p-5 bg-sky-50 border-sky-100 hover:border-sky-300 transition-all active:scale-95 border-dashed"
         >
           <div className="flex items-center space-x-4">
@@ -268,7 +380,7 @@ export default function HomePage({ onToast }: HomePageProps) {
         </button>
 
         <button
-          onClick={() => navigate('/discourse')}
+          onClick={() => user ? navigate('/discourse') : redirectToProfileForCloudProgress('discourse')}
           className="group card flex items-center justify-between p-5 bg-indigo-50 border-indigo-100 hover:border-indigo-300 transition-all active:scale-95 border-dashed mt-4"
         >
           <div className="flex items-center space-x-4">
@@ -286,7 +398,7 @@ export default function HomePage({ onToast }: HomePageProps) {
       <div className="grid grid-cols-2 gap-3 mt-4">
           <button
             onClick={() => handlePlay('quick')}
-            disabled={loading}
+            disabled={synonymPlayDisabled}
             className="card flex flex-col items-center justify-center p-4 bg-amber-50 border-amber-100/50 hover:bg-amber-100 transition-all active:scale-95 opacity-95 disabled:opacity-50 h-24 w-full"
           >
             <div className="h-6 flex items-center justify-center">
@@ -299,7 +411,7 @@ export default function HomePage({ onToast }: HomePageProps) {
           
           <button
             onClick={() => handlePlay('review')}
-            disabled={loading}
+            disabled={synonymPlayDisabled}
             className="card flex flex-col items-center justify-center p-4 bg-blue-50 border-blue-100/50 hover:bg-blue-100 transition-all active:scale-95 disabled:opacity-50 h-24 w-full"
           >
             <div className="h-6 flex items-center justify-center">

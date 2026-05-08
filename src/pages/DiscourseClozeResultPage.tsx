@@ -2,15 +2,16 @@ import { useState, useEffect } from 'react';
 import { DiscourseClozeSession } from '../types/discourseCloze';
 import { getDiscourseFunctionLabelEu, getFunctionRecommendationEu } from '../services/discourseClozeDiagnosisService';
 import { useNavigate } from 'react-router-dom';
+import { SESSION_STORAGE_KEYS, readJsonFromSessionStorage } from '../lib/storage';
 
 export default function DiscourseClozeResultPage() {
   const navigate = useNavigate();
   const [session, setSession] = useState<DiscourseClozeSession | null>(null);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem('hitzkideak_discourse_result');
+    const stored = readJsonFromSessionStorage<DiscourseClozeSession>(SESSION_STORAGE_KEYS.discourseResult);
     if (stored) {
-      setSession(JSON.parse(stored));
+      setSession(stored);
     } else {
       navigate('/');
     }

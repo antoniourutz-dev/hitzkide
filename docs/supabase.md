@@ -1,24 +1,46 @@
 # Supabase requerido por Hitzkideak
 
-La aplicacion ya esta preparada para conectarse a Supabase desde variables de entorno de Vite:
+La aplicacion ya esta preparada para conectarse a Supabase desde:
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
 
-## Objetos que consume el frontend
+## Esquema operativo gestionado en este repositorio
+
+### Sincronizacion de usuario
+
+- `user_profiles`
+- `user_progress_snapshots`
+
+### Observabilidad
+
+- `client_observability_events`
+
+### Migraciones incluidas
+
+- [`migrations/20260426_linguistic_layer.sql`](../migrations/20260426_linguistic_layer.sql)
+- [`migrations/20260505_operational_foundation.sql`](../migrations/20260505_operational_foundation.sql)
+
+Orden recomendado:
+
+1. Aplicar `20260505_operational_foundation.sql`
+2. Aplicar `20260426_linguistic_layer.sql`
+3. Aplicar las migraciones del dominio linguistico si se mantienen fuera de este repo
+
+## Objetos de contenido que consume el frontend
 
 ### Lexico principal
 
 - `lexical_groups`
 - `lexical_words`
 
-La app lee directamente de `lexical_groups` con un join a `lexical_words`.
+La app lee directamente de `lexical_groups` con join a `lexical_words`.
 
 ### Cloze
 
 - `lexical_cloze_questions`
 
-Columnas esperadas por el frontend:
+Columnas esperadas:
 
 - `id`
 - `group_id`
@@ -97,10 +119,7 @@ Columnas esperadas en `discourse_cloze_options_for_game`:
 - `register_note_eu`
 - `register_note_es`
 
-## Migraciones incluidas
+## Notas de producto profesional
 
-Actualmente el repositorio solo incluye:
-
-- [`migrations/20260426_linguistic_layer.sql`](../migrations/20260426_linguistic_layer.sql)
-
-Esa migracion amplia `lexical_groups`, pero no crea todo el esquema desde cero. Si el proyecto de Supabase ya existe, revisa que los objetos anteriores esten disponibles antes de desplegar.
+- El frontend debe poder arrancar sin Supabase, pero la sincronizacion cloud y el sink remoto de observabilidad requieren las tablas operativas anteriores.
+- `client_observability_events` esta pensado para usuarios autenticados; los eventos anonimos se conservan localmente hasta que exista sesion.

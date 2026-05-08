@@ -5,12 +5,19 @@ import OptionButton from '../components/OptionButton';
 import FeedbackPanel from '../components/FeedbackPanel';
 import FavoriteButton from '../components/FavoriteButton';
 import { favoritesService } from '../services/favoritesService';
-import { playerService } from '../services/playerService';
 import { motion, AnimatePresence } from 'motion/react';
 import { useLanguagePreference } from '../hooks/useLanguagePreference';
 import { useNavigate, useParams } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { AnswerResult } from '../types/stats';
+import { usePlayerProfile } from '../hooks/usePlayerProfile';
+import { authService } from '../services/authService';
+import {
+  SESSION_STORAGE_KEYS,
+  readJsonFromSessionStorage,
+  removeSessionStorageItem,
+  writeJsonToSessionStorage,
+} from '../lib/storage';
 
 interface DailyGamePageProps {
   onToast: (message: string, type?: 'success' | 'info' | 'warning' | 'achievement') => void;
@@ -28,18 +35,48 @@ export default function DailyGamePage({ onToast }: DailyGamePageProps) {
   const [sessionStreak, setSessionStreak] = useState(0);
   const [languagePreference] = useLanguagePreference();
   const [questions, setQuestions] = useState<GameQuestion[]>([]);
+  const [accessChecked, setAccessChecked] = useState(false);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem('hitzkideak_questions');
-    if (stored) {
-      setQuestions(JSON.parse(stored));
-    } else {
-      navigate('/');
-    }
+    let mounted = true;
+
+    authService.getCurrentUser()
+      .then((user) => {
+        if (!mounted) return;
+
+        if (!user) {
+          navigate('/profile');
+          return;
+        }
+
+        setAccessChecked(true);
+      })
+      .catch(() => {
+        if (mounted) {
+          navigate('/profile');
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
   }, [navigate]);
 
+  useEffect(() => {
+    if (!accessChecked) {
+      return;
+    }
+
+    const parsed = readJsonFromSessionStorage<GameQuestion[]>(SESSION_STORAGE_KEYS.questions);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      setQuestions(parsed);
+    } else {
+        navigate('/');
+    }
+  }, [accessChecked, navigate]);
+
   const currentQuestion = questions[currentIndex];
-  const profile = playerService.getProfile();
+  const profile = usePlayerProfile();
 
   useEffect(() => {
     if (currentQuestion) {
@@ -86,13 +123,13 @@ export default function DailyGamePage({ onToast }: DailyGamePageProps) {
       setIsAnswered(false);
       setSelectedWord(null);
     } else {
-      sessionStorage.setItem('hitzkideak_result', JSON.stringify({ score, answers, questions, mode }));
+      writeJsonToSessionStorage(SESSION_STORAGE_KEYS.result, { score, answers, questions, mode });
       navigate('/results');
     }
   };
 
   const handleQuit = () => {
-    sessionStorage.removeItem('hitzkideak_questions');
+    removeSessionStorageItem(SESSION_STORAGE_KEYS.questions);
     navigate('/');
   };
 
@@ -116,7 +153,7 @@ export default function DailyGamePage({ onToast }: DailyGamePageProps) {
     setIsFavorite(!isFavorite);
   };
 
-  if (!currentQuestion) {
+  if (!accessChecked || !currentQuestion) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
@@ -134,8 +171,12 @@ export default function DailyGamePage({ onToast }: DailyGamePageProps) {
           </div>
           <div className="flex items-center gap-3">
             <FavoriteButton isFavorite={isFavorite} onClick={toggleFav} />
-            <button onClick={handleQuit} className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
-              <X size={20} />
+            <button
+              onClick={handleQuit}
+              className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              aria-label="Saioa utzi eta hasierara itzuli"
+            >
+              <X size={20} aria-hidden="true" />
             </button>
           </div>
         </div>

@@ -5,11 +5,11 @@
 ```bash
 npm install
 cp .env.example .env.local
-# Edit .env.local with Supabase credentials (optional for local dev)
+# Edit .env.local with Supabase credentials
 npm run dev
 ```
 
-Requires: Node 18+, Supabase backend, optional Gemini API key.
+Requires: Node 18+, Supabase backend.
 
 ## Commands
 
@@ -32,7 +32,7 @@ Requires: Node 18+, Supabase backend, optional Gemini API key.
 - `@/*` path alias maps to project root
 - **React Router v7** for navigation (deep linking enabled)
 - PWA via `vite-plugin-pwa`; Supabase calls cached in service worker (1-week TTL)
-- Supabase client is optional (returns null if env vars missing) — app works offline with local state
+- Supabase is the source of truth for authenticated user progress and profile data
 - Dev HMR can be disabled with `DISABLE_HMR=true` env var
 
 ## Routes
@@ -66,10 +66,6 @@ Requires: Node 18+, Supabase backend, optional Gemini API key.
 - Vitest for testing (`src/test/`), no test suite (verify manually)
 - `docs-ia/` contains Spanish-language project management docs (workflow, architecture decisions, testing guide)
 - `.env*` files are gitignored; only `.env.example` is committed
-- **Gemini API**: Use server-side proxy at `/api/gemini` (Vercel Edge Function) — never embed API key in client bundle
-  - Client sends prompts to proxy, proxy forwards to Gemini with server-side key
-  - Set `GEMINI_API_KEY` in Vercel dashboard (not in client env)
-  - Client uses `VITE_GEMINI_PROXY_URL` to point to the deployed Edge Function
 - **PWA**: Cache versioning via `CACHE_VERSION` in `vite.config.ts`; offline fallback at `public/offline.html`
   - `cleanupOutdatedCaches: true` — old caches auto-removed on update
   - `skipWaiting: true` — service worker activates immediately
@@ -77,4 +73,3 @@ Requires: Node 18+, Supabase backend, optional Gemini API key.
 ## Deployment
 
 Vercel: build command `npm run build`, output `dist/`. No server — purely static with PWA.
-Edge Functions in `api/` directory are deployed automatically.

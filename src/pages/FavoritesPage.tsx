@@ -2,6 +2,7 @@ import { ArrowLeft, Trash2, Book } from 'lucide-react';
 import { favoritesService } from '../services/favoritesService';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getConceptLabel, getGrammarLabel } from '../utils/labels';
 
 export default function FavoritesPage() {
   const navigate = useNavigate();
@@ -35,10 +36,10 @@ export default function FavoritesPage() {
             <div key={fav.id} className="bg-white border-2 border-slate-50 rounded-3xl p-6 shadow-sm space-y-4 relative">
               <div className="flex justify-between items-start">
                 <div className="space-y-1">
-                  <h4 className="text-2xl font-black text-slate-800 tracking-tight uppercase">{fav.concept}</h4>
+                  <h4 className="text-2xl font-black text-slate-800 tracking-tight">{getConceptLabel(fav.concept)}</h4>
                   <div className="flex flex-wrap gap-2">
                     {fav.grammar && (
-                      <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded uppercase">{fav.grammar}</span>
+                      <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded">{getGrammarLabel(fav.grammar)}</span>
                     )}
                     {fav.reviewed_level && (
                       <span className="text-[10px] font-bold bg-blue-50 text-blue-500 px-2 py-0.5 rounded uppercase">{fav.reviewed_level}</span>

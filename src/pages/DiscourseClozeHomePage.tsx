@@ -2,23 +2,32 @@ import { ArrowLeft, BarChart2, RefreshCw } from 'lucide-react';
 import { playerService } from '../services/playerService';
 import { discourseClozeDiagnosisService } from '../services/discourseClozeDiagnosisService';
 import { useNavigate } from 'react-router-dom';
+import { usePlayerProfile } from '../hooks/usePlayerProfile';
+import { useEffect, useState } from 'react';
+import { User } from '@supabase/supabase-js';
+import { authService } from '../services/authService';
 
 export default function DiscourseClozeHomePage() {
   const navigate = useNavigate();
-  const profile = playerService.getProfile();
+  const profile = usePlayerProfile();
+  const [user, setUser] = useState<User | null>(null);
   const stats = playerService.getDiscourseClozeStats(profile);
   const diagnosis = discourseClozeDiagnosisService.getDiscourseDiagnosis(stats);
   const reviewCount = stats.questionsToReview;
   const isAdituaUnlocked = profile.unlockedLevels.includes('Aditua');
 
+  useEffect(() => {
+    authService.getCurrentUser().then(setUser);
+  }, []);
+
   return (
     <div className="p-6 space-y-6 pb-20">
       <div className="flex justify-between items-center">
-        <button onClick={() => navigate('/')} className="p-2 -ml-2 text-slate-400 hover:text-slate-600">
-          <ArrowLeft />
+        <button onClick={() => navigate('/')} className="p-2 -ml-2 text-slate-400 hover:text-slate-600" aria-label="Hasierara itzuli">
+          <ArrowLeft aria-hidden="true" />
         </button>
-        <button onClick={() => navigate('/stats')} className="p-2 text-slate-400 hover:text-sky-500">
-          <BarChart2 />
+        <button onClick={() => navigate('/stats')} className="p-2 text-slate-400 hover:text-sky-500" aria-label="Estatistikak ikusi">
+          <BarChart2 aria-hidden="true" />
         </button>
       </div>
 
@@ -26,6 +35,12 @@ export default function DiscourseClozeHomePage() {
           <h2 className="text-3xl font-black text-slate-800 tracking-tight">Antolatzaileak</h2>
           <p className="font-bold text-sky-600">Testua lotu, ideiak antolatu eta ñabardurak landu</p>
       </div>
+
+      {!user && (
+        <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm font-semibold text-sky-900">
+          Saioa hasi behar duzu antolatzaileen aurrerapena Supabasen gordetzeko.
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm space-y-4">
           <div>
@@ -61,7 +76,7 @@ export default function DiscourseClozeHomePage() {
                   Estatistikak
               </button>
               {reviewCount > 0 && (
-                  <button onClick={() => navigate(`/discourse/10/review`)} className="flex-1 py-2 bg-orange-50 text-orange-600 rounded-xl text-xs font-black shadow-sm border border-orange-200 flex items-center justify-center gap-1">
+                  <button onClick={() => navigate(user ? `/discourse/10/review` : '/profile')} className="flex-1 py-2 bg-orange-50 text-orange-600 rounded-xl text-xs font-black shadow-sm border border-orange-200 flex items-center justify-center gap-1">
                       <RefreshCw size={14} /> Errepasatu
                   </button>
               )}
@@ -75,7 +90,7 @@ export default function DiscourseClozeHomePage() {
       <div className="grid gap-3 pt-4">
         {reviewCount > 0 && (
           <button
-             onClick={() => navigate('/discourse/10/review')}
+             onClick={() => navigate(user ? '/discourse/10/review' : '/profile')}
              className="relative flex flex-col items-start p-4 bg-orange-50 border border-orange-200 hover:border-orange-400 active:scale-95 rounded-2xl transition-all shadow-sm"
           >
              <div className="absolute top-4 right-4 text-orange-400">
@@ -89,7 +104,7 @@ export default function DiscourseClozeHomePage() {
         {[5, 10, 15].map(size => (
           <button
              key={size}
-             onClick={() => navigate(`/discourse/${size}/normal`)}
+             onClick={() => navigate(user ? `/discourse/${size}/normal` : '/profile')}
              className="flex flex-col items-start p-4 bg-white border border-slate-200 hover:border-sky-300 hover:bg-sky-50 rounded-2xl transition-all shadow-sm active:scale-95"
           >
             <span className="font-black text-slate-800">
@@ -101,7 +116,7 @@ export default function DiscourseClozeHomePage() {
 
         <button
            disabled={!isAdituaUnlocked}
-           onClick={() => isAdituaUnlocked && navigate('/discourse/10/aditua')}
+           onClick={() => user ? (isAdituaUnlocked && navigate('/discourse/10/aditua')) : navigate('/profile')}
            className={`flex flex-col items-start p-4 rounded-2xl transition-all shadow-sm border ${
              isAdituaUnlocked
                 ? "bg-emerald-50 border-emerald-200 hover:border-emerald-400 active:scale-95"

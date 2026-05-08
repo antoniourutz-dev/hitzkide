@@ -113,6 +113,7 @@ function createRecentAnswer(groupId: number, index: number, isCorrect: boolean, 
 describe('playerService', () => {
   beforeEach(() => {
     localStorage.clear();
+    playerService.resetProfile('auth_required');
   });
 
   describe('getLevelCriteria', () => {
@@ -181,7 +182,7 @@ describe('playerService', () => {
       expect(savedProfile.stats.totalSessions).toBe(1);
       expect(savedProfile.stats.totalQuestions).toBe(1);
       expect(savedProfile.stats.totalCorrect).toBe(1);
-      expect(savedProfile.syncStatus).toBe('pending');
+      expect(savedProfile.syncStatus).toBe('auth_required');
     });
 
     it('merges local and cloud progress without dropping sessions or recent answers', () => {

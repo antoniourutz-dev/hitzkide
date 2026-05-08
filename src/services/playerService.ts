@@ -3,6 +3,9 @@ import { PlayerProfile, UserLevel, MasteryStatus, ItemMastery, SessionResult, An
 import { ClozeSession } from '../types/cloze';
 import { DiscourseClozeSession, DiscourseClozeLevel } from '../types/discourseCloze';
 import { GameQuestion } from '../types/question';
+import { observabilityService } from '../analytics/observabilityService';
+import { authService } from './authService';
+import { createClientId } from '../lib/id';
 
 type NormalizedAnswer = {
   isCorrect: boolean;
@@ -16,11 +19,18 @@ type NormalizedAnswer = {
   answeredAt?: string;
 };
 
-const PLAYER_KEY = 'hitzkideak_player_profile';
+const LEGACY_PLAYER_KEY = 'hitzkideak_player_profile';
+const PLAYER_PROFILE_UPDATED_EVENT = 'hitzkideak:player-profile-updated';
 const MAX_RECENT_ANSWERS = 500;
 const MAX_STANDARD_SESSIONS = 120;
 const MAX_CLOZE_SESSIONS = 120;
 const MAX_DISCOURSE_SESSIONS = 120;
+const AUTH_SESSION_TIMEOUT_MS = 4000;
+const SUPABASE_READ_TIMEOUT_MS = 8000;
+const SUPABASE_WRITE_TIMEOUT_MS = 10000;
+let authenticatedProfileSyncPromise: Promise<PlayerProfile> | null = null;
+let authenticatedProfileSyncUserId: string | null = null;
+let currentUserId: string | null = null;
 
 const LEVEL_ORDER: UserLevel[] = ['B1', 'B2', 'C1', 'C2', 'Aditua'];
 const VALID_LEVELS = new Set<UserLevel>(LEVEL_ORDER);
@@ -38,9 +48,27 @@ function createEmptyStats(): PlayerProfile['stats'] {
   };
 }
 
-function createInitialProfile(): PlayerProfile {
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = globalThis.setTimeout(() => {
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    promise
+      .then((value) => {
+        globalThis.clearTimeout(timeoutId);
+        resolve(value);
+      })
+      .catch((error) => {
+        globalThis.clearTimeout(timeoutId);
+        reject(error);
+      });
+  });
+}
+
+function createInitialProfile(syncStatus: PlayerProfile['syncStatus'] = 'loading'): PlayerProfile {
   return {
-    installationId: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2),
+    installationId: createClientId('installation'),
     currentLevel: 'B1',
     unlockedLevels: ['B1'],
     stats: createEmptyStats(),
@@ -51,9 +79,12 @@ function createInitialProfile(): PlayerProfile {
     discourseClozeSessions: [],
     discourseClozeMastery: {},
     lastLevelUp: null,
-    recentAnswers: []
+    recentAnswers: [],
+    syncStatus,
   };
 }
+
+let currentProfile: PlayerProfile = createInitialProfile();
 
 function isValidLevel(level: unknown): level is UserLevel {
   return typeof level === 'string' && VALID_LEVELS.has(level as UserLevel);
@@ -234,6 +265,12 @@ function applyRetentionPolicy(profile: PlayerProfile): PlayerProfile {
   return profile;
 }
 
+function cloneProfile(profile: PlayerProfile): PlayerProfile {
+  return typeof structuredClone === 'function'
+    ? structuredClone(profile)
+    : JSON.parse(JSON.stringify(profile)) as PlayerProfile;
+}
+
 function normalizeLoadedProfile(rawProfile: Partial<PlayerProfile> | null | undefined): PlayerProfile {
   const base = createInitialProfile();
   const profile: PlayerProfile = {
@@ -264,6 +301,114 @@ function normalizeLoadedProfile(rawProfile: Partial<PlayerProfile> | null | unde
   return applyRetentionPolicy(profile);
 }
 
+function getLegacyStorage(): Storage | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function readLegacyLocalProfile(): PlayerProfile | null {
+  const storage = getLegacyStorage();
+  if (!storage) return null;
+
+  const rawValue = storage.getItem(LEGACY_PLAYER_KEY);
+  if (!rawValue) return null;
+
+  try {
+    return normalizeLoadedProfile(JSON.parse(rawValue) as PlayerProfile);
+  } catch {
+    storage.removeItem(LEGACY_PLAYER_KEY);
+    return null;
+  }
+}
+
+function clearLegacyLocalProfile(): void {
+  const storage = getLegacyStorage();
+  if (!storage) return;
+
+  storage.removeItem(LEGACY_PLAYER_KEY);
+}
+
+function profileHasMeaningfulProgress(profile: PlayerProfile): boolean {
+  const normalized = normalizeLoadedProfile(profile);
+
+  return (
+    normalized.stats.totalSessions > 0 ||
+    normalized.stats.totalQuestions > 0 ||
+    (normalized.sessions?.length || 0) > 0 ||
+    normalized.recentAnswers.length > 0 ||
+    normalized.clozeSessions.length > 0 ||
+    (normalized.discourseClozeSessions?.length || 0) > 0 ||
+    Object.keys(normalized.groupMastery).length > 0 ||
+    Object.keys(normalized.wordMastery).length > 0 ||
+    Object.keys(normalized.clozeMastery).length > 0 ||
+    Object.keys(normalized.discourseClozeMastery || {}).length > 0 ||
+    normalized.currentLevel !== 'B1' ||
+    normalized.unlockedLevels.length > 1
+  );
+}
+
+function buildComparableProfileSnapshot(profile: PlayerProfile): string {
+  const normalized = normalizeLoadedProfile(profile);
+
+  return JSON.stringify({
+    currentLevel: normalized.currentLevel,
+    unlockedLevels: normalized.unlockedLevels,
+    stats: normalized.stats,
+    groupMastery: normalized.groupMastery,
+    wordMastery: normalized.wordMastery,
+    clozeSessions: normalized.clozeSessions,
+    clozeMastery: normalized.clozeMastery,
+    discourseClozeSessions: normalized.discourseClozeSessions || [],
+    discourseClozeMastery: normalized.discourseClozeMastery || {},
+    lastLevelUp: normalized.lastLevelUp,
+    recentAnswers: normalized.recentAnswers,
+    sessions: normalized.sessions || []
+  });
+}
+
+function areProfilesEquivalent(left: PlayerProfile, right: PlayerProfile): boolean {
+  return buildComparableProfileSnapshot(left) === buildComparableProfileSnapshot(right);
+}
+
+function notifyProfileUpdated() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.dispatchEvent(new CustomEvent(PLAYER_PROFILE_UPDATED_EVENT));
+}
+
+function setCurrentProfile(profile: PlayerProfile, options?: { notify?: boolean }) {
+  currentProfile = normalizeLoadedProfile(profile);
+
+  if (options?.notify !== false) {
+    notifyProfileUpdated();
+  }
+}
+
+async function resolveAuthenticatedUserId(): Promise<string | null> {
+  if (currentUserId) {
+    return currentUserId;
+  }
+
+  const user = await authService.getCurrentUser();
+  currentUserId = user?.id ?? null;
+  return currentUserId;
+}
+
+function createProgressSyncError(reason: 'auth_required' | 'sync_failed'): Error {
+  const error = new Error(reason);
+  error.name = 'ProgressSyncError';
+  return error;
+}
+
 const LEVEL_CRITERIA: Record<UserLevel, { 
   questions: number, 
   accuracy: number, 
@@ -281,7 +426,7 @@ const LEVEL_CRITERIA: Record<UserLevel, {
 export const playerService = {
   // Helper to get effective criteria including compensation
   getLevelCriteria(level: UserLevel, totalCount: number, recentAccuracy: number, reviewingRatio: number) {
-    const base = LEVEL_CRITERIA[level];
+    const base = LEVEL_CRITERIA[level] || LEVEL_CRITERIA['B1'];
     
     // Excellence Compensation
     let effectiveMastery = base.mastery;
@@ -299,48 +444,80 @@ export const playerService = {
   },
 
   getProfile(): PlayerProfile {
-    const saved = localStorage.getItem(PLAYER_KEY);
-    let profile = createInitialProfile();
-    let needsSave = false;
-    if (saved) {
-      try {
-        profile = normalizeLoadedProfile(JSON.parse(saved) as Partial<PlayerProfile>);
-      } catch {
-        profile = createInitialProfile();
-      }
-    }
+    return cloneProfile(currentProfile);
+  },
 
-    // Normalize level answers and rebuild if missing from sessions
-    if ((!profile.recentAnswers.length && profile.sessions && profile.sessions.length > 0) || 
-        (profile.recentAnswers.length > 0 && !profile.recentAnswers[0].playerLevelAtAnswer && !profile.recentAnswers[0].contentLevel)) {
-      this.rebuildRecentAnswersFromSessions(profile);
-      needsSave = true;
-    }
-
-    if (needsSave) {
-      this.saveProfile(profile);
-    }
-
-    return profile;
+  resetProfile(syncStatus: PlayerProfile['syncStatus'] = 'auth_required') {
+    currentUserId = null;
+    setCurrentProfile(createInitialProfile(syncStatus));
+    return this.getProfile();
   },
 
   saveClozeSession(session: ClozeSession) {
     const profile = this.getProfile();
+    session.answers.forEach((answer) => {
+      const question = session.questions.find((item) => item.id === answer.questionId);
+      if (question) {
+        this.updateClozeMastery(question.id, answer.isCorrect, question.level, profile);
+      }
+    });
     profile.clozeSessions.push(compactClozeSession(session));
     this.saveProfile(profile);
-    this.triggerBackgroundSync();
+  },
+
+  async persistClozeSession(session: ClozeSession) {
+    await this.commitCloudProfileChange(() => {
+      this.saveClozeSession(session);
+      return session;
+    });
+    observabilityService.trackFeatureUsage('cloze', session.questions[0]?.mode || 'normal', 'completed', {
+      total: session.total,
+      score: session.score,
+      level: session.level,
+    });
   },
 
   saveDiscourseClozeSession(session: DiscourseClozeSession) {
     const profile = this.getProfile();
     if (!profile.discourseClozeSessions) profile.discourseClozeSessions = [];
+    session.answers.forEach((answer) => {
+      const question = session.questions.find((item) => item.id === answer.questionId);
+      if (question) {
+        this.updateDiscourseClozeMastery(
+          question.id,
+          answer.isCorrect,
+          question.level,
+          question.skill_focus,
+          question.discursive_function,
+          profile
+        );
+      }
+    });
     profile.discourseClozeSessions.push(compactDiscourseSession(session));
     this.saveProfile(profile);
-    this.triggerBackgroundSync();
   },
 
-  updateDiscourseClozeMastery(questionId: number, isCorrect: boolean, level: DiscourseClozeLevel, skillFocus: string, discursiveFunction: string) {
-    const profile = this.getProfile();
+  async persistDiscourseClozeSession(session: DiscourseClozeSession) {
+    await this.commitCloudProfileChange(() => {
+      this.saveDiscourseClozeSession(session);
+      return session;
+    });
+    observabilityService.trackFeatureUsage('discourse', session.questions[0]?.mode || 'normal', 'completed', {
+      total: session.total,
+      score: session.score,
+      level: session.level,
+    });
+  },
+
+  updateDiscourseClozeMastery(
+    questionId: number,
+    isCorrect: boolean,
+    level: DiscourseClozeLevel,
+    skillFocus: string,
+    discursiveFunction: string,
+    profileOverride?: PlayerProfile
+  ) {
+    const profile = profileOverride ?? this.getProfile();
     if (!profile.discourseClozeMastery) profile.discourseClozeMastery = {};
     
     const mastery = profile.discourseClozeMastery[questionId] || {
@@ -402,11 +579,15 @@ export const playerService = {
     mastery.nextReviewAt = nextDate.toISOString();
 
     profile.discourseClozeMastery[questionId] = mastery;
-    this.saveProfile(profile);
+    if (!profileOverride) {
+      this.saveProfile(profile);
+    }
+
+    return profile;
   },
 
-  updateClozeMastery(questionId: number, isCorrect: boolean, level: UserLevel) {
-    const profile = this.getProfile();
+  updateClozeMastery(questionId: number, isCorrect: boolean, level: UserLevel, profileOverride?: PlayerProfile) {
+    const profile = profileOverride ?? this.getProfile();
     const mastery = profile.clozeMastery[questionId] || {
       questionId,
       level,
@@ -454,21 +635,120 @@ export const playerService = {
     }
 
     profile.clozeMastery[questionId] = mastery;
-    this.saveProfile(profile);
+    if (!profileOverride) {
+      this.saveProfile(profile);
+    }
+
+    return profile;
   },
 
-  saveProfile(profile: PlayerProfile, options?: { markPending?: boolean }) {
-    profile.lastLocalUpdateAt = new Date().toISOString();
+  saveProfile(profile: PlayerProfile, options?: { markPending?: boolean; preserveLocalTimestamp?: boolean; notify?: boolean }) {
     if (options?.markPending !== false) {
-      profile.syncStatus = 'pending';
+      profile.syncStatus = currentUserId ? 'pending' : 'auth_required';
     }
-    applyRetentionPolicy(profile);
-    localStorage.setItem(PLAYER_KEY, JSON.stringify(profile));
+
+    setCurrentProfile(profile, { notify: options?.notify });
+  },
+
+  subscribeToProfileChanges(callback: () => void) {
+    if (typeof window === 'undefined') {
+      return () => {};
+    }
+
+    const handler = () => callback();
+    window.addEventListener(PLAYER_PROFILE_UPDATED_EVENT, handler);
+
+    return () => {
+      window.removeEventListener(PLAYER_PROFILE_UPDATED_EVENT, handler);
+    };
+  },
+
+  async synchronizeAuthenticatedProfile(userId: string): Promise<PlayerProfile> {
+    if (authenticatedProfileSyncPromise && authenticatedProfileSyncUserId === userId) {
+      return authenticatedProfileSyncPromise;
+    }
+
+    const syncPromise = (async () => {
+      currentUserId = userId;
+      this.saveProfile({ ...this.getProfile(), syncStatus: 'loading' }, { markPending: false });
+      const inMemoryProfile = this.getProfile();
+      const legacyProfile = readLegacyLocalProfile();
+      const cloudProfile = await this.loadProgressFromCloud(userId);
+      const memoryHasProgress =
+        inMemoryProfile.syncStatus !== 'loading' &&
+        inMemoryProfile.syncStatus !== 'auth_required' &&
+        profileHasMeaningfulProgress(inMemoryProfile);
+      const legacyHasProgress = legacyProfile ? profileHasMeaningfulProgress(legacyProfile) : false;
+      const localCandidate = memoryHasProgress && legacyHasProgress && legacyProfile
+        ? this.mergeLocalAndCloudProgress(inMemoryProfile, legacyProfile)
+        : memoryHasProgress
+          ? inMemoryProfile
+          : legacyHasProgress && legacyProfile
+            ? legacyProfile
+            : null;
+
+      if (!cloudProfile) {
+        const seedProfile = localCandidate && profileHasMeaningfulProgress(localCandidate)
+          ? localCandidate
+          : createInitialProfile('pending');
+        clearLegacyLocalProfile();
+        return this.syncProgressToCloud(seedProfile, { userId, skipMerge: true });
+      }
+
+      if (!localCandidate || !profileHasMeaningfulProgress(localCandidate)) {
+        clearLegacyLocalProfile();
+        this.saveProfile(cloudProfile, { markPending: false });
+        this.markSynced(cloudProfile.lastCloudSyncAt || new Date().toISOString());
+        return this.getProfile();
+      }
+
+      const mergedProfile = this.mergeLocalAndCloudProgress(localCandidate, cloudProfile);
+
+      if (areProfilesEquivalent(mergedProfile, cloudProfile)) {
+        clearLegacyLocalProfile();
+        this.saveProfile(mergedProfile, { markPending: false });
+        this.markSynced(cloudProfile.lastCloudSyncAt || new Date().toISOString());
+        return this.getProfile();
+      }
+
+      clearLegacyLocalProfile();
+      return this.syncProgressToCloud(mergedProfile, { userId, skipMerge: true });
+    })().catch((error) => {
+      this.markSyncError();
+      observabilityService.captureError('sync.authenticated_profile_failed', 'sync', error, {
+        userId,
+      });
+      return this.getProfile();
+    }).finally(() => {
+      if (authenticatedProfileSyncPromise === syncPromise) {
+        authenticatedProfileSyncPromise = null;
+        authenticatedProfileSyncUserId = null;
+      }
+    });
+
+    authenticatedProfileSyncPromise = syncPromise;
+    authenticatedProfileSyncUserId = userId;
+
+    return syncPromise;
   },
 
   async triggerBackgroundSync() {
+    const userId = await resolveAuthenticatedUserId();
     const profile = this.getProfile();
-    await this.syncProgressToCloud(profile);
+    return this.syncProgressToCloud(profile, userId ? { userId } : undefined);
+  },
+
+  async commitCloudProfileChange<T>(applyChange: () => T): Promise<T> {
+    const previousProfile = this.getProfile();
+    const result = applyChange();
+    const syncedProfile = await this.triggerBackgroundSync();
+
+    if (syncedProfile.syncStatus !== 'synced') {
+      this.saveProfile(previousProfile, { markPending: false });
+      throw createProgressSyncError(syncedProfile.syncStatus === 'auth_required' ? 'auth_required' : 'sync_failed');
+    }
+
+    return result;
   },
 
   updateSession(score: number, questions: GameQuestion[], answers: AnswerResult[], mode: string = 'main'): SessionResult {
@@ -563,8 +843,19 @@ export const playerService = {
     profile.sessions.push(compactStandardSession(sessionResult));
 
     this.saveProfile(profile);
-    this.triggerBackgroundSync();
 
+    return sessionResult;
+  },
+
+  async finalizeSession(score: number, questions: GameQuestion[], answers: AnswerResult[], mode: string = 'main') {
+    const sessionResult = await this.commitCloudProfileChange(() => (
+      this.updateSession(score, questions, answers, mode)
+    ));
+    observabilityService.trackFeatureUsage('synonym', mode, 'completed', {
+      total: questions.length,
+      score,
+      level: sessionResult.level,
+    });
     return sessionResult;
   },
 
@@ -656,6 +947,11 @@ export const playerService = {
     const reviewingCount = currentLevelGroups.filter(m => m.status === 'reviewing').length;
     const reviewingRatio = currentLevelGroups.length > 0 ? (reviewingCount / currentLevelGroups.length) : 0;
 
+    const lastN = levelAnswers.slice(-40);
+    const recentAccuracy = lastN.length > 0 ? (lastN.filter(a => a.isCorrect).length / lastN.length) : 0;
+
+    const criteria = this.getLevelCriteria(profile.currentLevel, totalCount, recentAccuracy, reviewingRatio);
+
     const getKnowledgeScoreForGroup = (m: ItemMastery): number => {
       if (m.status === 'mastered') return 1.0;
       if (m.status === 'known') return 0.8;
@@ -665,19 +961,18 @@ export const playerService = {
       return 0;
     };
 
-    let knowledgeScore = 0;
-    currentLevelGroups.forEach(m => {
-        knowledgeScore += getKnowledgeScoreForGroup(m);
-    });
+    const sortedGroups = [...currentLevelGroups].sort((a, b) => getKnowledgeScoreForGroup(b) - getKnowledgeScoreForGroup(a));
+    const targetQ = criteria?.questions || 40;
+    const topGroups = sortedGroups.slice(0, targetQ);
 
-    const totalSeenGroups = currentLevelGroups.length;
-    const knowledgeRate = totalSeenGroups > 0 ? (knowledgeScore / totalSeenGroups) : 0;
+    const knowledgeScore = topGroups.reduce((score, mastery) => (
+      score + getKnowledgeScoreForGroup(mastery)
+    ), 0);
 
-    const lastN = levelAnswers.slice(-40);
-    const recentAccuracy = lastN.length > 0 ? (lastN.filter(a => a.isCorrect).length / lastN.length) : 0;
+    const evaluatedGroupCount = topGroups.length;
+    const knowledgeRate = evaluatedGroupCount > 0 ? (knowledgeScore / evaluatedGroupCount) : 0;
 
-    const criteria = this.getLevelCriteria(profile.currentLevel, totalCount, recentAccuracy, reviewingRatio);
-    if (totalCount >= criteria.questions && recentAccuracy >= criteria.accuracy && knowledgeRate >= criteria.effectiveMastery && reviewingRatio <= criteria.review) {
+    if (criteria && totalCount >= criteria.questions && recentAccuracy >= criteria.accuracy && knowledgeRate >= criteria.effectiveMastery && reviewingRatio <= criteria.review) {
       canLevelUp = true;
     }
 
@@ -773,7 +1068,7 @@ export const playerService = {
       }
       if (needsRebuild) {
         this.rebuildRecentAnswersFromSessions(profile);
-        this.saveProfile(profile);
+        // Removed saveProfile to prevent infinite loops during render
       }
     }
     return profile.recentAnswers || [];
@@ -978,23 +1273,31 @@ export const playerService = {
       return 0;
     };
 
-    const knowledgeScore = currentLevelGroups.reduce((score, m) => score + getKnowledgeScoreForGroup(m), 0);
-
-    const totalSeenGroups = currentLevelGroups.length;
-    const knowledgeRate = totalSeenGroups > 0 ? (knowledgeScore / totalSeenGroups) : 0;
-
     const lastN = answersForLevel.slice(-40);
     const recentAccuracy = lastN.length > 0 ? (lastN.filter(a => a.isCorrect).length / lastN.length) : 0;
     
     const criteria = this.getLevelCriteria(currentLevel, totalCount, recentAccuracy, reviewingRatio);
-    const targetQuestions = criteria.questions;
-    const targetAccuracy = criteria.accuracy;
-    const targetMastery = criteria.effectiveMastery;
-    const maxReviewing = criteria.review;
+
+    const sortedGroups = [...currentLevelGroups].sort((a, b) => getKnowledgeScoreForGroup(b) - getKnowledgeScoreForGroup(a));
+    const targetQ = criteria?.questions || 40;
+    const topGroups = sortedGroups.slice(0, targetQ);
+
+    const knowledgeScore = topGroups.reduce((score, mastery) => (
+      score + getKnowledgeScoreForGroup(mastery)
+    ), 0);
+
+    const totalSeenGroups = currentLevelGroups.length;
+    const evaluatedGroupCount = topGroups.length;
+    const knowledgeRate = evaluatedGroupCount > 0 ? (knowledgeScore / evaluatedGroupCount) : 0;
+    
+    const targetQuestions = targetQ;
+    const targetAccuracy = criteria?.accuracy || 0.75;
+    const targetMastery = criteria?.effectiveMastery || 0.45;
+    const maxReviewing = criteria?.review || 0.25;
 
     const questionProgress = Math.min(1, totalCount / targetQuestions);
     const accuracyProgress = totalCount === 0 ? 0 : Math.min(1, recentAccuracy / targetAccuracy);
-    const masteryProgress = totalSeenGroups === 0 ? 0 : Math.min(1, knowledgeRate / targetMastery);
+    const masteryProgress = evaluatedGroupCount === 0 ? 0 : Math.min(1, knowledgeRate / targetMastery);
     
     let reviewProgress = 0.5;
     if (totalSeenGroups > 0) {
@@ -1181,7 +1484,7 @@ export const playerService = {
         }
         
         // lowTimesSeen: +20
-        if (m.timesSeen < 3) {
+      if (m.timesSeen < 3) {
             score += 20;
         }
         
@@ -1204,19 +1507,56 @@ export const playerService = {
      return questions;
   },
 
-  async syncProgressToCloud(profile: PlayerProfile): Promise<void> {
+  async syncProgressToCloud(
+    profile: PlayerProfile,
+    options?: { userId?: string; skipMerge?: boolean }
+  ): Promise<PlayerProfile> {
     const supabase = getSupabase();
-    if (!supabase) return;
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return; // User not logged in, remain soft
+    const normalizedProfile = applyRetentionPolicy(normalizeLoadedProfile(profile));
+    if (!supabase) {
+      this.markSyncError(normalizedProfile);
+      return this.getProfile();
+    }
+
+    const user = options?.userId
+      ? null
+      : await withTimeout(
+        authService.getCurrentUser(),
+        AUTH_SESSION_TIMEOUT_MS,
+        'auth.get_current_user'
+      );
+    const userId = options?.userId || user?.id;
+    if (!userId) {
+      this.saveProfile({ ...normalizedProfile, syncStatus: 'auth_required' }, { markPending: false });
+      return this.getProfile();
+    }
+
+    currentUserId = userId;
 
     try {
+      let profileToSync = normalizedProfile;
+      if (!options?.skipMerge) {
+        const cloudProfile = await this.loadProgressFromCloud(userId);
+        if (cloudProfile) {
+          profileToSync = this.mergeLocalAndCloudProgress(profileToSync, cloudProfile);
+        }
+      }
+
+      this.markSyncPending(profileToSync);
       const now = new Date().toISOString();
-      const profileToSync = applyRetentionPolicy(normalizeLoadedProfile(profile));
+      observabilityService.trackSync('started', {
+        userId,
+        totalSessions: profileToSync.stats.totalSessions,
+        totalAnswers: profileToSync.stats.totalQuestions,
+      });
       const payload = {
-        user_id: user.id,
+        user_id: userId,
         schema_version: 1,
-        progress: profileToSync,
+        progress: {
+          ...profileToSync,
+          syncStatus: 'synced',
+          lastCloudSyncAt: now,
+        },
         current_level: profileToSync.currentLevel,
         total_sessions: profileToSync.stats.totalSessions,
         total_answers: profileToSync.stats.totalQuestions,
@@ -1230,31 +1570,65 @@ export const playerService = {
       // actually, let's just write to user_progress_snapshots.
       // Make sure we have a profile to link to.
       
-      const { error: profileError } = await supabase
-        .from('user_profiles')
-        .upsert({ 
-           id: user.id, 
-           username: user.user_metadata?.username || null,
-           display_name: user.user_metadata?.username || null,
-           current_level: profileToSync.currentLevel, 
-           updated_at: now 
-        }, { onConflict: 'id' });
+      const { error: profileError } = await withTimeout(
+        Promise.resolve(
+          supabase
+            .from('user_profiles')
+            .upsert({
+              id: userId,
+              username: user?.user_metadata?.username || user?.email?.split('@')[0] || null,
+              display_name: authService.getDisplayName(user),
+              current_level: profileToSync.currentLevel,
+              updated_at: now
+            }, { onConflict: 'id' })
+        ),
+        SUPABASE_WRITE_TIMEOUT_MS,
+        'sync.user_profiles_upsert'
+      );
       
       if (profileError) {
-        console.error('Error syncing profile meta to cloud', profileError);
+        observabilityService.captureError('sync.profile_meta_failed', 'sync', profileError, {
+          userId,
+        });
       }
 
-      const { error } = await supabase
-        .from('user_progress_snapshots')
-        .upsert(payload, { onConflict: 'user_id' });
+      const { error } = await withTimeout(
+        Promise.resolve(
+          supabase
+            .from('user_progress_snapshots')
+            .upsert(payload, { onConflict: 'user_id' })
+        ),
+        SUPABASE_WRITE_TIMEOUT_MS,
+        'sync.user_progress_snapshots_upsert'
+      );
 
       if (error) {
-        this.markSyncError();
-        return;
+        this.markSyncError(profileToSync);
+        observabilityService.captureError('sync.snapshot_failed', 'sync', error, {
+          userId,
+          totalSessions: profileToSync.stats.totalSessions,
+        });
+        return this.getProfile();
       }
-      this.markSynced(now);
-    } catch {
-      this.markSyncError();
+
+      this.saveProfile({
+        ...profileToSync,
+        syncStatus: 'synced',
+        lastCloudSyncAt: now,
+      }, { markPending: false });
+      observabilityService.trackSync('success', {
+        userId,
+        totalSessions: profileToSync.stats.totalSessions,
+        totalAnswers: profileToSync.stats.totalQuestions,
+      });
+      await observabilityService.flushEventsToSupabase('sync_success');
+      return this.getProfile();
+    } catch (error) {
+      this.markSyncError(normalizedProfile);
+      observabilityService.captureError('sync.unexpected_failure', 'sync', error, {
+        userId,
+      });
+      return this.getProfile();
     }
   },
 
@@ -1262,18 +1636,35 @@ export const playerService = {
     const supabase = getSupabase();
     if (!supabase) return null;
     try {
-      const { data, error } = await supabase
-        .from('user_progress_snapshots')
-        .select('progress, last_synced_at')
-        .eq('user_id', userId)
-        .maybeSingle();
+      const { data, error } = await withTimeout(
+        Promise.resolve(
+          supabase
+            .from('user_progress_snapshots')
+            .select('progress, last_synced_at')
+            .eq('user_id', userId)
+            .maybeSingle()
+        ),
+        SUPABASE_READ_TIMEOUT_MS,
+        'sync.load_progress_snapshot'
+      );
 
-      if (error || !data) return null;
+      if (error || !data) {
+        if (error) {
+          observabilityService.captureError('sync.load_failed', 'sync', error, {
+            userId,
+          });
+        }
+        return null;
+      }
       
       const p = normalizeLoadedProfile(data.progress as PlayerProfile);
+      p.syncStatus = 'synced';
       p.lastCloudSyncAt = data.last_synced_at;
       return p;
-    } catch {
+    } catch (error) {
+      observabilityService.captureError('sync.load_unexpected_failure', 'sync', error, {
+        userId,
+      });
       return null;
     }
   },
@@ -1381,25 +1772,33 @@ export const playerService = {
     return applyRetentionPolicy(merged);
   },
 
-  markSyncPending() {
-    const profile = this.getProfile();
-    profile.syncStatus = 'pending';
-    applyRetentionPolicy(profile);
-    localStorage.setItem(PLAYER_KEY, JSON.stringify(profile));
+  markSyncPending(profile?: PlayerProfile) {
+    const nextProfile = profile ? normalizeLoadedProfile(profile) : this.getProfile();
+    nextProfile.syncStatus = currentUserId ? 'pending' : 'auth_required';
+    setCurrentProfile(nextProfile);
   },
 
-  markSyncError() {
-    const profile = this.getProfile();
-    profile.syncStatus = 'error';
-    applyRetentionPolicy(profile);
-    localStorage.setItem(PLAYER_KEY, JSON.stringify(profile));
+  markSyncError(profile?: PlayerProfile) {
+    const nextProfile = profile ? normalizeLoadedProfile(profile) : this.getProfile();
+    nextProfile.syncStatus = 'error';
+    setCurrentProfile(nextProfile);
   },
 
-  markSynced(time: string) {
-    const profile = this.getProfile();
-    profile.syncStatus = 'synced';
-    profile.lastCloudSyncAt = time;
-    applyRetentionPolicy(profile);
-    localStorage.setItem(PLAYER_KEY, JSON.stringify(profile));
+  markSynced(time: string, profile?: PlayerProfile) {
+    const nextProfile = profile ? normalizeLoadedProfile(profile) : this.getProfile();
+    nextProfile.syncStatus = 'synced';
+    nextProfile.lastCloudSyncAt = time;
+    setCurrentProfile(nextProfile);
+  },
+
+  handleSignedOutState() {
+    authenticatedProfileSyncPromise = null;
+    authenticatedProfileSyncUserId = null;
+    currentUserId = null;
+    setCurrentProfile(createInitialProfile('auth_required'));
+  },
+
+  getCurrentUserId() {
+    return currentUserId;
   }
 };

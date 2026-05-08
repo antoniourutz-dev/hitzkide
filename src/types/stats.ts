@@ -66,8 +66,7 @@ export interface PlayerProfile {
   sessions?: SessionResult[];
   
   // Sync metadata
-  syncStatus?: 'synced' | 'pending' | 'error';
-  lastLocalUpdateAt?: string;
+  syncStatus?: 'loading' | 'synced' | 'pending' | 'error' | 'auth_required';
   lastCloudSyncAt?: string;
 }
 

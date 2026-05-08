@@ -34,7 +34,7 @@ export default function ReviewPage() {
 
     if (searchTerm) {
       result = result.filter(g => 
-        g.concept?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        getConceptLabel(g.concept).toLowerCase().includes(searchTerm.toLowerCase()) ||
         g.words.some(w => w.word.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }

@@ -3,6 +3,7 @@ import { cn } from '../../lib/utils';
 import { DiscourseClozeQuestion, DiscourseClozeOptionExplanation } from '../../types/discourseCloze';
 import { LanguagePreference } from '../../hooks/useLanguagePreference';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import { observabilityService } from '../../analytics/observabilityService';
 
 interface DiscourseClozeExplanationCardProps {
   question: DiscourseClozeQuestion;
@@ -45,7 +46,10 @@ export default function DiscourseClozeExplanationCard({
     const euContent = euText?.trim() || null;
 
     if (looksLikeEnglish(esContent)) {
-      console.warn("Campo *_es parece estar en inglés. Revisar datos en Supabase.", esContent);
+      observabilityService.trackEvent('content.discourse_spanish_fallback_suspected', 'content', {
+        questionId: question.id,
+        excerpt: esContent,
+      }, 'warning');
       esContent = null;
     }
 

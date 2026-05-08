@@ -94,18 +94,18 @@ export function getFilterLabel(value: string | null | undefined): string {
 
 export function humanizeInternalCode(value: string | null | undefined): string {
   if (!value) return '';
-  // Convert to lowercase
-  let str = value.toLowerCase();
-  
-  // Replace underscores with spaces
-  str = str.replace(/_/g, ' ');
-  
-  // Replace " edo " or " eta " correctly to not capitalize them if we capitalize words, but let's just capitalize the first letter globally
-  // Wait, requirement: "capitalizar primera letra de cada palabra importante" or just first letter?
-  // "sustituir "_" por espacios, sustituir " eta " si ya existe correctamente, capitalizar primera letra de cada palabra importante"
-  // "kopurua_edo_intentsitatea_jaistea → Kopurua edo intentsitatea jaistea"
-  // Wait, the example only capitalizes the *first* letter of the entire concept string:
-  // "kopurua_edo_intentsitatea_jaistea → Kopurua edo intentsitatea jaistea"
-  // Let's just capitalize the first character.
-  return str.charAt(0).toUpperCase() + str.slice(1);
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+
+  if (!trimmed.includes('_') && !trimmed.includes('-')) {
+    return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+  }
+
+  const normalized = trimmed
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }

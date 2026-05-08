@@ -7,6 +7,10 @@ import { useLanguagePreference } from '../hooks/useLanguagePreference';
 import { playerService } from '../services/playerService';
 import { RefreshCw, X } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { observabilityService } from '../analytics/observabilityService';
+import { usePlayerProfile } from '../hooks/usePlayerProfile';
+import { SESSION_STORAGE_KEYS, writeJsonToSessionStorage } from '../lib/storage';
+import { authService } from '../services/authService';
 
 export default function DiscourseClozeGamePage() {
   const { size, mode } = useParams<{ size: string; mode: string }>();
@@ -17,20 +21,64 @@ export default function DiscourseClozeGamePage() {
   const [session, setSession] = useState<DiscourseClozeSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAnswered, setIsAnswered] = useState(false);
+  const [isFinishing, setIsFinishing] = useState(false);
+  const [completionError, setCompletionError] = useState<string | null>(null);
+  const [accessChecked, setAccessChecked] = useState(false);
   const [currentAnswer, setCurrentAnswer] = useState<DiscourseClozeAnswerResult | null>(null);
   const [optionExplanations, setOptionExplanations] = useState<DiscourseClozeOptionExplanation[]>([]);
   const [languagePreference] = useLanguagePreference();
 
-  const profile = playerService.getProfile();
+  const profile = usePlayerProfile();
 
   useEffect(() => {
     let mounted = true;
 
+    authService.getCurrentUser()
+      .then((user) => {
+        if (!mounted) return;
+
+        if (!user) {
+          navigate('/profile');
+          return;
+        }
+
+        setAccessChecked(true);
+      })
+      .catch(() => {
+        if (mounted) {
+          navigate('/profile');
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [navigate]);
+
+  useEffect(() => {
+    if (!accessChecked) {
+      return;
+    }
+
+    let mounted = true;
+    observabilityService.trackFeatureUsage('discourse', sessionMode || 'normal', 'requested', {
+      sessionSize,
+      level: profile.currentLevel,
+    });
+    setLoading(true);
+    setError(false);
+    setSession(null);
+
     const initSession = async () => {
       try {
-        const recentlySeenIds = Object.values(profile.discourseClozeMastery || {})
+        const discourseMasteryEntries = Object.values(profile.discourseClozeMastery || {}) as Array<{
+          lastSeenAt: string | null;
+          questionId: number;
+        }>;
+        const recentlySeenIds = discourseMasteryEntries
            .sort((a, b) => new Date(b.lastSeenAt || 0).getTime() - new Date(a.lastSeenAt || 0).getTime())
            .slice(0, 20)
            .map(m => m.questionId);
@@ -55,15 +103,33 @@ export default function DiscourseClozeGamePage() {
         if (mounted) {
             if (newSession) {
                 setSession(newSession);
+                observabilityService.trackFeatureUsage('discourse', sessionMode || 'normal', 'started', {
+                  sessionSize: newSession.total,
+                  level: profile.currentLevel,
+                });
             } else {
                 setError(true);
+                observabilityService.trackFeatureUsage('discourse', sessionMode || 'normal', 'failed', {
+                  reason: 'no_session_available',
+                  sessionSize,
+                  level: profile.currentLevel,
+                });
             }
             setLoading(false);
         }
       } catch (err) {
-          console.error(err);
+          observabilityService.captureError('session.discourse_prepare_failed', 'session', err, {
+            mode: sessionMode || 'normal',
+            sessionSize,
+            level: profile.currentLevel,
+          });
           if (mounted) {
              setError(true);
+             observabilityService.trackFeatureUsage('discourse', sessionMode || 'normal', 'failed', {
+               reason: 'unexpected_error',
+               sessionSize,
+               level: profile.currentLevel,
+             });
              setLoading(false);
           }
       }
@@ -72,17 +138,17 @@ export default function DiscourseClozeGamePage() {
     initSession();
 
     return () => { mounted = false; };
-  }, [sessionSize, sessionMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [accessChecked, loadAttempt, sessionSize, sessionMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFinish = (finalSession: DiscourseClozeSession) => {
-    sessionStorage.setItem('hitzkideak_discourse_result', JSON.stringify(finalSession));
+    writeJsonToSessionStorage(SESSION_STORAGE_KEYS.discourseResult, finalSession);
     navigate('/discourse/results');
   };
 
-  if (loading) {
+  if (!accessChecked || loading) {
       return (
-          <div className="flex flex-col items-center justify-center p-12 space-y-4">
-              <RefreshCw className="animate-spin text-sky-500" size={32} />
+          <div className="flex flex-col items-center justify-center p-12 space-y-4" role="status" aria-live="polite">
+              <RefreshCw className="animate-spin text-sky-500" size={32} aria-hidden="true" />
               <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Kargatzen...</p>
           </div>
       );
@@ -93,9 +159,14 @@ export default function DiscourseClozeGamePage() {
           <div className="p-6 space-y-6">
               <div className="bg-red-50 text-red-800 p-6 rounded-3xl border border-red-100">
                   <p className="font-bold">Ezin izan dira antolatzaileen galderak kargatu edo ez dago nahikorik maila honetarako.</p>
+                  {!navigator.onLine && (
+                    <p className="mt-2 text-sm font-medium text-red-700">
+                      Konexiorik gabe bazaude, aurrez gordetako edukia baino ezin dugu erabili.
+                    </p>
+                  )}
               </div>
               <div className="space-y-3">
-                  <button onClick={() => window.location.reload()} className="w-full py-4 bg-white text-slate-800 font-black rounded-2xl border border-slate-200">
+                  <button onClick={() => setLoadAttempt((value) => value + 1)} className="w-full py-4 bg-white text-slate-800 font-black rounded-2xl border border-slate-200">
                       Berriro saiatu
                   </button>
                   <button onClick={() => navigate('/')} className="w-full py-4 bg-emerald-50 text-emerald-700 font-black rounded-2xl border border-emerald-200">
@@ -126,22 +197,19 @@ export default function DiscourseClozeGamePage() {
 
       const explanations = await discourseClozeService.fetchDiscourseOptionExplanations(currentQuestion.id);
       setOptionExplanations(explanations);
-
-      playerService.updateDiscourseClozeMastery(
-          currentQuestion.id,
-          result.isCorrect,
-          currentQuestion.level,
-          currentQuestion.skill_focus,
-          currentQuestion.discursive_function
-      );
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
+      if (isFinishing) {
+        return;
+      }
+
       if (currentIndex < session.questions.length - 1) {
           setCurrentIndex(currentIndex + 1);
           setIsAnswered(false);
           setCurrentAnswer(null);
           setOptionExplanations([]);
+          setCompletionError(null);
       } else {
           const finalAnswers = resolvedCurrentAnswer && !session.answers.some((answer) => answer.questionId === resolvedCurrentAnswer.questionId)
             ? [...session.answers, resolvedCurrentAnswer]
@@ -153,20 +221,42 @@ export default function DiscourseClozeGamePage() {
             completed: true,
             finishedAt: new Date().toISOString(),
           };
-          playerService.saveDiscourseClozeSession(finalSession);
-          handleFinish(finalSession);
+          setIsFinishing(true);
+          setCompletionError(null);
+
+          try {
+            await playerService.persistDiscourseClozeSession(finalSession);
+            handleFinish(finalSession);
+          } catch (error) {
+            setCompletionError(
+              error instanceof Error && error.message === 'auth_required'
+                ? 'Saioa berriro hasi behar duzu emaitza hau Supabasen gordetzeko.'
+                : 'Ezin izan dugu saioa Supabasen gorde. Saiatu berriro.'
+            );
+          } finally {
+            setIsFinishing(false);
+          }
       }
   };
 
   return (
     <div className="p-6 space-y-6">
+      {completionError && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+          {completionError}
+        </div>
+      )}
       <div className="flex justify-between items-center text-xs font-black uppercase tracking-widest text-slate-400">
           <div className="flex flex-col">
             <span className="text-slate-800 text-lg">Antolatzaileak</span>
             <span>{currentIndex + 1} / {session.total}</span>
           </div>
-          <button onClick={() => navigate('/discourse')} className="p-2 -mr-2 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
-              <X size={24} />
+          <button
+            onClick={() => navigate('/discourse')}
+            className="p-2 -mr-2 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            aria-label="Antolatzaileen hasierara itzuli"
+          >
+              <X size={24} aria-hidden="true" />
           </button>
       </div>
 

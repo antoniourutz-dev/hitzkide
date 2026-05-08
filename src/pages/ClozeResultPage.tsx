@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
 import { ClozeSession } from '../types/cloze';
 import { useNavigate } from 'react-router-dom';
+import { SESSION_STORAGE_KEYS, readJsonFromSessionStorage } from '../lib/storage';
 
 export default function ClozeResultPage() {
   const navigate = useNavigate();
   const [session, setSession] = useState<ClozeSession | null>(null);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem('hitzkideak_cloze_result');
+    const stored = readJsonFromSessionStorage<ClozeSession>(SESSION_STORAGE_KEYS.clozeResult);
     if (stored) {
-      setSession(JSON.parse(stored));
+      setSession(stored);
     } else {
       navigate('/');
     }

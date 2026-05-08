@@ -34,12 +34,14 @@ export default function DiscourseClozeQuestionCard({ question, onAnswer, selecte
         {parts[1]}
       </p>
 
-      <div className="grid grid-cols-1 gap-2">
+      <div className="grid grid-cols-1 gap-2" role="group" aria-label="Antolatzaileen aukerak">
         {question.options.map((option) => (
           <button
             key={option}
             onClick={() => !isAnswered && onAnswer(option)}
             disabled={isAnswered}
+            aria-pressed={selectedAnswer === option}
+            aria-label={option}
             className={cn(
               "w-full py-4 px-6 rounded-2xl text-left font-bold transition-all",
               isAnswered && option === question.answer ? "bg-emerald-100 border-emerald-500 text-emerald-800" :

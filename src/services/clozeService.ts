@@ -1,5 +1,7 @@
 import { getSupabase } from '../lib/supabase';
 import { LexicalClozeQuestion, ClozeLevel } from '../types/cloze';
+import { contentCache } from './contentCache';
+import { observabilityService } from '../analytics/observabilityService';
 
 type RawClozeQuestion = Omit<Partial<LexicalClozeQuestion>, 'options'> & {
   sentence_eu?: string | null;
@@ -11,6 +13,25 @@ const CLOZE_LEVEL_ORDER: ClozeLevel[] = ['B1', 'B2', 'C1', 'C2', 'Aditua'];
 
 function shuffleArray<T>(items: T[]): T[] {
   return [...items].sort(() => Math.random() - 0.5);
+}
+
+function buildClozeCacheKey(levels: ClozeLevel[], mode: 'normal' | 'aditua'): string {
+  return `cloze:${mode}:${levels.join(',')}`;
+}
+
+function prioritizeClozeQuestions(
+  questions: LexicalClozeQuestion[],
+  currentLevel: ClozeLevel,
+  requestedLimit: number
+): LexicalClozeQuestion[] {
+  const currentLevelQuestions = shuffleArray(
+    questions.filter((question) => question.level === currentLevel)
+  );
+  const fallbackQuestions = shuffleArray(
+    questions.filter((question) => question.level !== currentLevel)
+  );
+
+  return [...currentLevelQuestions, ...fallbackQuestions].slice(0, requestedLimit);
 }
 
 export function getAccessibleClozeLevels(currentLevel: ClozeLevel, mode: 'normal' | 'aditua'): ClozeLevel[] {
@@ -28,11 +49,16 @@ export const clozeService = {
     mode: 'normal' | 'aditua';
     limit?: number;
   }): Promise<LexicalClozeQuestion[]> {
-    const supabase = getSupabase();
-    if (!supabase) return [];
     const accessibleLevels = getAccessibleClozeLevels(params.currentLevel, params.mode);
     const requestedLimit = params.limit || 50;
     const queryLimit = Math.max(requestedLimit * 4, 50);
+    const cacheKey = buildClozeCacheKey(accessibleLevels, params.mode);
+    const cachedQuestions = contentCache.read<LexicalClozeQuestion[]>(cacheKey) || [];
+    const supabase = getSupabase();
+
+    if (!supabase) {
+      return prioritizeClozeQuestions(cachedQuestions, params.currentLevel, requestedLimit);
+    }
 
     const query = supabase
       .from('lexical_cloze_questions')
@@ -46,21 +72,26 @@ export const clozeService = {
     const { data, error } = await query.limit(queryLimit);
 
     if (error) {
-      console.error('Error fetching cloze questions:', error);
-      return [];
+      observabilityService.captureError('supabase.cloze_fetch_failed', 'supabase', error, {
+        mode: params.mode,
+        currentLevel: params.currentLevel,
+      });
+      return prioritizeClozeQuestions(cachedQuestions, params.currentLevel, requestedLimit);
     }
 
     const normalizedQuestions = (data || [])
       .map(this.normalizeClozeQuestion)
       .filter((q): q is LexicalClozeQuestion => !!q);
-    const currentLevelQuestions = shuffleArray(
-      normalizedQuestions.filter((question) => question.level === params.currentLevel)
-    );
-    const fallbackQuestions = shuffleArray(
-      normalizedQuestions.filter((question) => question.level !== params.currentLevel)
-    );
 
-    return [...currentLevelQuestions, ...fallbackQuestions].slice(0, requestedLimit);
+    if (normalizedQuestions.length > 0) {
+      contentCache.write(cacheKey, normalizedQuestions);
+    }
+
+    return prioritizeClozeQuestions(
+      normalizedQuestions.length > 0 ? normalizedQuestions : cachedQuestions,
+      params.currentLevel,
+      requestedLimit
+    );
   },
 
   normalizeClozeQuestion(raw: RawClozeQuestion): LexicalClozeQuestion | null {
