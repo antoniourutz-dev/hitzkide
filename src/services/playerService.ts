@@ -19,6 +19,19 @@ type NormalizedAnswer = {
   answeredAt?: string;
 };
 
+export type CloudProgressSnapshotMetadata = {
+  userId: string;
+  lastSyncedAt: string | null;
+  totalSessions: number;
+  totalAnswers: number;
+  totalCorrect: number;
+  accuracy: number;
+  progressTotalSessions: number;
+  progressTotalQuestions: number;
+  progressRecentAnswers: number;
+  progressCloudUserId: string | null;
+};
+
 const LEGACY_PLAYER_KEY = 'hitzkideak_player_profile';
 const PLAYER_PROFILE_UPDATED_EVENT = 'hitzkideak:player-profile-updated';
 const MAX_RECENT_ANSWERS = 500;
@@ -1520,6 +1533,7 @@ export const playerService = {
           ...profileToSync,
           syncStatus: 'synced',
           lastCloudSyncAt: now,
+          cloudUserId: userId,
         },
         current_level: profileToSync.currentLevel,
         total_sessions: profileToSync.stats.totalSessions,
@@ -1579,6 +1593,7 @@ export const playerService = {
         ...profileToSync,
         syncStatus: 'synced',
         lastCloudSyncAt: now,
+        cloudUserId: userId,
       }, { markPending: false });
       observabilityService.trackSync('success', {
         userId,
@@ -1604,7 +1619,7 @@ export const playerService = {
         Promise.resolve(
           supabase
             .from('user_progress_snapshots')
-            .select('progress, last_synced_at')
+            .select('progress, last_synced_at, user_id')
             .eq('user_id', userId)
             .maybeSingle()
         ),
@@ -1624,6 +1639,7 @@ export const playerService = {
       const p = normalizeLoadedProfile(data.progress as PlayerProfile);
       p.syncStatus = 'synced';
       p.lastCloudSyncAt = data.last_synced_at;
+      p.cloudUserId = data.user_id || userId;
       return p;
     } catch (error) {
       observabilityService.captureError('sync.load_unexpected_failure', 'sync', error, {
@@ -1752,7 +1768,51 @@ export const playerService = {
     const nextProfile = profile ? normalizeLoadedProfile(profile) : this.getProfile();
     nextProfile.syncStatus = 'synced';
     nextProfile.lastCloudSyncAt = time;
+    nextProfile.cloudUserId = currentUserId || nextProfile.cloudUserId;
     setCurrentProfile(nextProfile);
+  },
+
+  async fetchCloudSnapshotMetadata(userId: string): Promise<CloudProgressSnapshotMetadata | null> {
+    const supabase = getSupabase();
+    if (!supabase) return null;
+
+    try {
+      const { data, error } = await withTimeout(
+        Promise.resolve(
+          supabase
+            .from('user_progress_snapshots')
+            .select('user_id, progress, total_sessions, total_answers, total_correct, accuracy, last_synced_at')
+            .eq('user_id', userId)
+            .maybeSingle()
+        ),
+        SUPABASE_READ_TIMEOUT_MS,
+        'sync.load_progress_snapshot_metadata'
+      );
+
+      if (error || !data) {
+        return null;
+      }
+
+      const progress = normalizeLoadedProfile(data.progress as PlayerProfile);
+
+      return {
+        userId: data.user_id || userId,
+        lastSyncedAt: data.last_synced_at,
+        totalSessions: Number(data.total_sessions || 0),
+        totalAnswers: Number(data.total_answers || 0),
+        totalCorrect: Number(data.total_correct || 0),
+        accuracy: Number(data.accuracy || 0),
+        progressTotalSessions: progress.stats.totalSessions,
+        progressTotalQuestions: progress.stats.totalQuestions,
+        progressRecentAnswers: progress.recentAnswers.length,
+        progressCloudUserId: progress.cloudUserId || null,
+      };
+    } catch (error) {
+      observabilityService.captureError('sync.load_snapshot_metadata_failed', 'sync', error, {
+        userId,
+      });
+      return null;
+    }
   },
 
   handleSignedOutState() {

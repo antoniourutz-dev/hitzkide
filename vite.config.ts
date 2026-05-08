@@ -8,9 +8,11 @@ const CACHE_VERSION = 'v1.1.2';
 
 export default defineConfig(() => {
   const appVersion = process.env.npm_package_version || '0.5.0';
+  const appBuildId = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) || process.env.VERCEL_DEPLOYMENT_ID || 'local';
   return {
     define: {
       __APP_VERSION__: JSON.stringify(appVersion),
+      __APP_BUILD_ID__: JSON.stringify(appBuildId),
     },
     build: {
       rollupOptions: {

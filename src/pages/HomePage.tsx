@@ -13,8 +13,9 @@ import { authService } from '../services/authService';
 import { observabilityService } from '../analytics/observabilityService';
 import { usePlayerProfile } from '../hooks/usePlayerProfile';
 import { SESSION_STORAGE_KEYS, writeJsonToSessionStorage } from '../lib/storage';
-import { APP_RELEASE_CHANNEL, APP_VERSION } from '../config/appMetadata';
+import { APP_BUILD_ID, APP_RELEASE_CHANNEL, APP_VERSION } from '../config/appMetadata';
 import { getEnvConfig } from '../lib/env';
+import { CloudProgressSnapshotMetadata } from '../services/playerService';
 
 interface HomePageProps {
   onToast?: (message: string, type?: ToastData['type']) => void;
@@ -32,6 +33,7 @@ export default function HomePage({ onToast }: HomePageProps) {
   const [notEnoughQuestions, setNotEnoughQuestions] = useState(false);
   const [miniSessionMessage, setMiniSessionMessage] = useState<string | null>(null);
   const [cloudRefreshLoading, setCloudRefreshLoading] = useState(false);
+  const [cloudSnapshotMetadata, setCloudSnapshotMetadata] = useState<CloudProgressSnapshotMetadata | null>(null);
 
   useEffect(() => {
     const syncConnectivityState = () => {
@@ -190,13 +192,32 @@ export default function HomePage({ onToast }: HomePageProps) {
   const reqMastery = progress.missingRequirements.find(r => r.label === 'Ezagutza')?.isMet;
   const knowledgeGap = reqQuestions && reqAccuracy && reqReview && !reqMastery;
   const synonymPlayDisabled = loading || (!isOnline && !hasOfflineData);
+  const userIdShort = user?.id ? `${user.id.slice(0, 8)}…${user.id.slice(-6)}` : '-';
+  const cloudUserIdShort = profile.cloudUserId ? `${profile.cloudUserId.slice(0, 8)}…${profile.cloudUserId.slice(-6)}` : '-';
+
+  const refreshCloudSnapshotMetadata = async (userId: string) => {
+    const metadata = await playerService.fetchCloudSnapshotMetadata(userId);
+    setCloudSnapshotMetadata(metadata);
+  };
+
+  useEffect(() => {
+    if (!showDetails || !user?.id) {
+      return;
+    }
+
+    void refreshCloudSnapshotMetadata(user.id);
+  }, [profile.lastCloudSyncAt, profile.stats.totalQuestions, showDetails, user?.id]);
 
   const refreshCloudProfile = async () => {
     if (!user?.id || cloudRefreshLoading) return;
 
     setCloudRefreshLoading(true);
     try {
-      await playerService.synchronizeAuthenticatedProfile(user.id);
+      const currentUser = await authService.getCurrentUser();
+      const userId = currentUser?.id || user.id;
+      setUser(currentUser || user);
+      await playerService.synchronizeAuthenticatedProfile(userId);
+      await refreshCloudSnapshotMetadata(userId);
       onToast?.('Hodeiko profila berritu dugu.', 'success');
     } catch (error) {
       observabilityService.captureError('home.manual_cloud_refresh_failed', 'sync', error, {
@@ -381,18 +402,32 @@ export default function HomePage({ onToast }: HomePageProps) {
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[9px] font-bold text-slate-500">
                     <span>Bertsioa</span>
                     <span className="text-right text-slate-700">{APP_VERSION} · {APP_RELEASE_CHANNEL}</span>
+                    <span>Build</span>
+                    <span className="text-right text-slate-700">{APP_BUILD_ID}</span>
                     <span>Supabase</span>
                     <span className="text-right text-slate-700">{supabaseProjectRef}</span>
+                    <span>Ikasle IDa</span>
+                    <span className="text-right text-slate-700">{userIdShort}</span>
+                    <span>Cloud IDa</span>
+                    <span className="text-right text-slate-700">{cloudUserIdShort}</span>
                     <span>Sync</span>
                     <span className="text-right text-slate-700">{profile.syncStatus || '-'}</span>
                     <span>Azken hodeia</span>
                     <span className="text-right text-slate-700">{profile.lastCloudSyncAt ? new Date(profile.lastCloudSyncAt).toLocaleString() : '-'}</span>
+                    <span>DB azkena</span>
+                    <span className="text-right text-slate-700">{cloudSnapshotMetadata?.lastSyncedAt ? new Date(cloudSnapshotMetadata.lastSyncedAt).toLocaleString() : '-'}</span>
                     <span>Saioak</span>
                     <span className="text-right text-slate-700">{profile.stats.totalSessions}</span>
                     <span>Galderak</span>
                     <span className="text-right text-slate-700">{profile.stats.totalQuestions}</span>
                     <span>Erantzun berriak</span>
                     <span className="text-right text-slate-700">{profile.recentAnswers.length}</span>
+                    <span>DB saioak</span>
+                    <span className="text-right text-slate-700">{cloudSnapshotMetadata?.progressTotalSessions ?? '-'}</span>
+                    <span>DB galderak</span>
+                    <span className="text-right text-slate-700">{cloudSnapshotMetadata?.progressTotalQuestions ?? '-'}</span>
+                    <span>DB erantzunak</span>
+                    <span className="text-right text-slate-700">{cloudSnapshotMetadata?.progressRecentAnswers ?? '-'}</span>
                   </div>
                 </div>
               </motion.div>

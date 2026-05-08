@@ -68,6 +68,7 @@ export interface PlayerProfile {
   // Sync metadata
   syncStatus?: 'loading' | 'synced' | 'pending' | 'error' | 'auth_required';
   lastCloudSyncAt?: string;
+  cloudUserId?: string;
 }
 
 export interface AnswerResult {

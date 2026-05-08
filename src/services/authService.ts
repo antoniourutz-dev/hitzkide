@@ -141,7 +141,7 @@ export const authService = {
     } catch {
       throw new Error('Erabiltzaile edo pasahitz okerra.');
     }
-    const internalEmail = this.usernameToInternalEmail(username);
+    const internalEmail = this.usernameToInternalEmail(normalizeUsername(username));
 
     const { data, error } = await withTimeout(
       Promise.resolve(

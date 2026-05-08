@@ -1,5 +1,17 @@
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { RefreshCw, X } from 'lucide-react';
+import { useEffect } from 'react';
+
+async function clearSupabaseRuntimeCaches() {
+  if (!('caches' in window)) return;
+
+  const cacheNames = await caches.keys();
+  await Promise.all(
+    cacheNames
+      .filter((cacheName) => cacheName.startsWith('supabase-cache-'))
+      .map((cacheName) => caches.delete(cacheName))
+  );
+}
 
 export default function ReloadPrompt() {
   const {
@@ -12,6 +24,10 @@ export default function ReloadPrompt() {
     setOfflineReady(false);
     setNeedRefresh(false);
   };
+
+  useEffect(() => {
+    void clearSupabaseRuntimeCaches();
+  }, []);
 
   if (!offlineReady && !needRefresh) return null;
 
