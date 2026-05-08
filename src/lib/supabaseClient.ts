@@ -18,6 +18,13 @@ export function getSupabaseClient(): SupabaseClient | null {
     return null;
   }
 
-  supabaseInstance = createClient(supabaseUrl, supabaseAnonKey);
+  supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      fetch: (input, init) => fetch(input, {
+        ...init,
+        cache: 'no-store',
+      }),
+    },
+  });
   return supabaseInstance;
 }

@@ -1,8 +1,21 @@
 import { registerSW } from 'virtual:pwa-register';
 import { observabilityService } from '../analytics/observabilityService';
 
+async function clearSupabaseRuntimeCaches() {
+  if (!('caches' in window)) return;
+
+  const cacheNames = await caches.keys();
+  await Promise.all(
+    cacheNames
+      .filter((cacheName) => cacheName.startsWith('supabase-cache-'))
+      .map((cacheName) => caches.delete(cacheName))
+  );
+}
+
 export function register() {
   if ('serviceWorker' in navigator) {
+    void clearSupabaseRuntimeCaches();
+
     registerSW({
       onOfflineReady() {
         observabilityService.trackEvent('pwa.offline_ready', 'pwa', {

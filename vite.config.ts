@@ -4,7 +4,7 @@ import path from 'path';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
-const CACHE_VERSION = 'v1.1.1';
+const CACHE_VERSION = 'v1.1.2';
 
 export default defineConfig(() => {
   const appVersion = process.env.npm_package_version || '0.5.0';
@@ -72,20 +72,6 @@ export default defineConfig(() => {
           navigateFallback: 'offline.html',
           navigateFallbackDenylist: [/^\/api\//],
           runtimeCaching: [
-            {
-              urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
-              handler: 'NetworkFirst',
-              options: {
-                cacheName: `supabase-cache-${CACHE_VERSION}`,
-                expiration: {
-                  maxEntries: 100,
-                  maxAgeSeconds: 60 * 60 * 24 * 7
-                },
-                cacheableResponse: {
-                  statuses: [0, 200]
-                }
-              }
-            },
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
               handler: 'StaleWhileRevalidate',
