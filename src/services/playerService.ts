@@ -659,11 +659,22 @@ export const playerService = {
     }
 
     const syncPromise = (async () => {
-      currentUserId = userId;
+      const verifiedUser = await withTimeout(
+        authService.getCurrentUser(),
+        AUTH_SESSION_TIMEOUT_MS,
+        'auth.verify_authenticated_profile_user'
+      );
+      if (!verifiedUser?.id || verifiedUser.id !== userId) {
+        currentUserId = null;
+        this.saveProfile({ ...this.getProfile(), syncStatus: 'auth_required' }, { markPending: false });
+        return this.getProfile();
+      }
+
+      currentUserId = verifiedUser.id;
       this.saveProfile({ ...this.getProfile(), syncStatus: 'loading' }, { markPending: false });
       const inMemoryProfile = this.getProfile();
       const legacyProfile = readLegacyLocalProfile();
-      const cloudProfile = await this.loadProgressFromCloud(userId);
+      const cloudProfile = await this.loadProgressFromCloud(verifiedUser.id);
 
       if (cloudProfile) {
         clearLegacyLocalProfile();
@@ -689,7 +700,7 @@ export const playerService = {
         ? localCandidate
         : createInitialProfile('pending');
       clearLegacyLocalProfile();
-      return this.syncProgressToCloud(seedProfile, { userId, skipMerge: true });
+      return this.syncProgressToCloud(seedProfile, { userId: verifiedUser.id, skipMerge: true });
     })().catch((error) => {
       this.markSyncError();
       observabilityService.captureError('sync.authenticated_profile_failed', 'sync', error, {
@@ -1495,16 +1506,28 @@ export const playerService = {
       return this.getProfile();
     }
 
-    const user = options?.userId
-      ? null
-      : await withTimeout(
+    let user: Awaited<ReturnType<typeof authService.getCurrentUser>>;
+    try {
+      user = await withTimeout(
         authService.getCurrentUser(),
         AUTH_SESSION_TIMEOUT_MS,
         'auth.get_current_user'
       );
-    const userId = options?.userId || user?.id;
-    if (!userId) {
+    } catch (error) {
+      currentUserId = null;
       this.saveProfile({ ...normalizedProfile, syncStatus: 'auth_required' }, { markPending: false });
+      observabilityService.captureError('sync.auth_user_lookup_failed', 'sync', error);
+      return this.getProfile();
+    }
+    const requestedUserId = options?.userId;
+    const userId = user?.id;
+    if (!userId || (requestedUserId && requestedUserId !== userId)) {
+      currentUserId = null;
+      this.saveProfile({ ...normalizedProfile, syncStatus: 'auth_required' }, { markPending: false });
+      observabilityService.captureError('sync.auth_user_mismatch', 'sync', new Error('Authenticated user mismatch'), {
+        requestedUserId,
+        verifiedUserId: userId,
+      });
       return this.getProfile();
     }
 

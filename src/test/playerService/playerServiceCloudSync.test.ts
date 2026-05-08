@@ -214,4 +214,37 @@ describe('playerService cloud synchronization', () => {
     expect(persistedProfile.stats.totalSessions).toBe(2);
     expect(persistedProfile.syncStatus).toBe('synced');
   });
+
+  it('does not write progress when the requested user does not match the verified session', async () => {
+    supabaseMocks.getUser.mockResolvedValue({
+      data: {
+        user: {
+          id: 'other-user',
+          user_metadata: {
+            username: 'bestea',
+          },
+        },
+      },
+      error: null,
+    });
+
+    const localProfile = createProfile({
+      stats: {
+        totalSessions: 1,
+        totalQuestions: 3,
+        totalCorrect: 2,
+        globalAccuracy: 66.6667,
+        currentStreak: 1,
+        bestStreak: 1,
+        lastPlayedDate: '2026-05-04',
+        dailySessionsCount: 1,
+      },
+    });
+
+    const syncedProfile = await playerService.syncProgressToCloud(localProfile, { userId: 'user-1' });
+
+    expect(syncedProfile.syncStatus).toBe('auth_required');
+    expect(supabaseMocks.profileUpsert).not.toHaveBeenCalled();
+    expect(supabaseMocks.snapshotUpsert).not.toHaveBeenCalled();
+  });
 });

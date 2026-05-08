@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const supabaseMocks = vi.hoisted(() => ({
   getSession: vi.fn(),
+  getUser: vi.fn(),
   signInWithPassword: vi.fn(),
   signUp: vi.fn(),
   signOut: vi.fn(),
@@ -12,6 +13,7 @@ vi.mock('../../lib/supabase', () => ({
   getSupabase: () => ({
     auth: {
       getSession: supabaseMocks.getSession,
+      getUser: supabaseMocks.getUser,
       signInWithPassword: supabaseMocks.signInWithPassword,
       signUp: supabaseMocks.signUp,
       signOut: supabaseMocks.signOut,
@@ -34,16 +36,14 @@ describe('authService', () => {
     });
   });
 
-  it('resolves the current user from the local session', async () => {
-    supabaseMocks.getSession.mockResolvedValue({
+  it('resolves the current user from Supabase auth', async () => {
+    supabaseMocks.getUser.mockResolvedValue({
       data: {
-        session: {
-          user: {
-            id: 'user-1',
-            email: 'ikaslea@lexikoa.app',
-            user_metadata: {
-              username: 'ikaslea',
-            },
+        user: {
+          id: 'user-1',
+          email: 'ikaslea@lexikoa.app',
+          user_metadata: {
+            username: 'ikaslea',
           },
         },
       },
@@ -53,7 +53,7 @@ describe('authService', () => {
     const user = await authService.getCurrentUser();
 
     expect(user?.id).toBe('user-1');
-    expect(supabaseMocks.getSession).toHaveBeenCalledTimes(1);
+    expect(supabaseMocks.getUser).toHaveBeenCalledTimes(1);
   });
 
   it('falls back to the internal email prefix when metadata is missing', () => {

@@ -64,9 +64,21 @@ export const authService = {
   },
 
   async getCurrentUser(): Promise<User | null> {
+    const supabase = getSupabase();
+    if (!supabase) return null;
+
     try {
-      const session = await this.getSession();
-      return session?.user ?? null;
+      const { data: { user }, error } = await withTimeout(
+        Promise.resolve(supabase.auth.getUser()),
+        AUTH_READ_TIMEOUT_MS,
+        'auth.get_user'
+      );
+
+      if (error) {
+        return null;
+      }
+
+      return user ?? null;
     } catch {
       return null;
     }
