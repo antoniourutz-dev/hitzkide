@@ -13,6 +13,8 @@ import { authService } from '../services/authService';
 import { observabilityService } from '../analytics/observabilityService';
 import { usePlayerProfile } from '../hooks/usePlayerProfile';
 import { SESSION_STORAGE_KEYS, writeJsonToSessionStorage } from '../lib/storage';
+import { APP_RELEASE_CHANNEL, APP_VERSION } from '../config/appMetadata';
+import { getEnvConfig } from '../lib/env';
 
 interface HomePageProps {
   onToast?: (message: string, type?: ToastData['type']) => void;
@@ -29,6 +31,7 @@ export default function HomePage({ onToast }: HomePageProps) {
   const [showDetails, setShowDetails] = useState(false);
   const [notEnoughQuestions, setNotEnoughQuestions] = useState(false);
   const [miniSessionMessage, setMiniSessionMessage] = useState<string | null>(null);
+  const [cloudRefreshLoading, setCloudRefreshLoading] = useState(false);
 
   useEffect(() => {
     const syncConnectivityState = () => {
@@ -171,6 +174,13 @@ export default function HomePage({ onToast }: HomePageProps) {
   };
 
   const progress = playerService.calculateLevelProgress(profile);
+  const supabaseProjectRef = (() => {
+    try {
+      return new URL(getEnvConfig().supabaseUrl).hostname.split('.')[0] || 'unknown';
+    } catch {
+      return 'unknown';
+    }
+  })();
   const currentIdx = ['B1', 'B2', 'C1', 'C2', 'Aditua'].indexOf(profile.currentLevel);
   const nextLevel = ['B2', 'C1', 'C2', 'Aditua'][currentIdx] || profile.currentLevel;
 
@@ -180,6 +190,23 @@ export default function HomePage({ onToast }: HomePageProps) {
   const reqMastery = progress.missingRequirements.find(r => r.label === 'Ezagutza')?.isMet;
   const knowledgeGap = reqQuestions && reqAccuracy && reqReview && !reqMastery;
   const synonymPlayDisabled = loading || (!isOnline && !hasOfflineData);
+
+  const refreshCloudProfile = async () => {
+    if (!user?.id || cloudRefreshLoading) return;
+
+    setCloudRefreshLoading(true);
+    try {
+      await playerService.synchronizeAuthenticatedProfile(user.id);
+      onToast?.('Hodeiko profila berritu dugu.', 'success');
+    } catch (error) {
+      observabilityService.captureError('home.manual_cloud_refresh_failed', 'sync', error, {
+        userId: user.id,
+      });
+      onToast?.('Ezin izan dugu hodeiko profila berritu.', 'warning');
+    } finally {
+      setCloudRefreshLoading(false);
+    }
+  };
 
   const getMoto = (p: number, prog: import('../types/stats').LevelProgress) => {
     if (knowledgeGap) return "Ia prest zaude: talde batzuk gehiago sendotu behar dituzu.";
@@ -343,6 +370,31 @@ export default function HomePage({ onToast }: HomePageProps) {
                     </div>
                   </div>
                 ))}
+                <div className="space-y-2 p-2">
+                  <button
+                    onClick={() => void refreshCloudProfile()}
+                    disabled={!user || cloudRefreshLoading}
+                    className="w-full rounded-lg bg-white px-3 py-2 text-[9px] font-black uppercase tracking-widest text-emerald-600 shadow-sm disabled:opacity-50"
+                  >
+                    {cloudRefreshLoading ? 'Hodeitik berritzen...' : 'Hodeitik berritu'}
+                  </button>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[9px] font-bold text-slate-500">
+                    <span>Bertsioa</span>
+                    <span className="text-right text-slate-700">{APP_VERSION} · {APP_RELEASE_CHANNEL}</span>
+                    <span>Supabase</span>
+                    <span className="text-right text-slate-700">{supabaseProjectRef}</span>
+                    <span>Sync</span>
+                    <span className="text-right text-slate-700">{profile.syncStatus || '-'}</span>
+                    <span>Azken hodeia</span>
+                    <span className="text-right text-slate-700">{profile.lastCloudSyncAt ? new Date(profile.lastCloudSyncAt).toLocaleString() : '-'}</span>
+                    <span>Saioak</span>
+                    <span className="text-right text-slate-700">{profile.stats.totalSessions}</span>
+                    <span>Galderak</span>
+                    <span className="text-right text-slate-700">{profile.stats.totalQuestions}</span>
+                    <span>Erantzun berriak</span>
+                    <span className="text-right text-slate-700">{profile.recentAnswers.length}</span>
+                  </div>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>

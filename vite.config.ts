@@ -4,7 +4,7 @@ import path from 'path';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
-const CACHE_VERSION = 'v1.1.0';
+const CACHE_VERSION = 'v1.1.1';
 
 export default defineConfig(() => {
   const appVersion = process.env.npm_package_version || '0.5.0';
