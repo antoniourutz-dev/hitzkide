@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, User as UserIcon, RefreshCw, CheckCircle2, AlertCircle, LogOut } from 'lucide-react';
+import { ArrowLeft, User as UserIcon, RefreshCw, CheckCircle2, AlertCircle, LogOut, X } from 'lucide-react';
 import { playerService } from '../services/playerService';
 import { authService } from '../services/authService';
 import { useNavigate } from 'react-router-dom';
@@ -20,7 +20,6 @@ export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
   const profile = usePlayerProfile();
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'info' | 'login' | 'register'>('info');
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -117,36 +116,7 @@ export default function ProfilePage() {
       setUser(signedInUser);
       setUsername('');
       setPassword('');
-      setView('info');
       startAuthenticatedProfileSync(signedInUser.id);
-      navigate('/');
-    } catch (error) {
-      setAuthError(getErrorMessage(error));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthError('');
-    if (password.length < 6) {
-      setAuthError('Pasahitzak gutxienez 6 karaktere izan behar ditu.');
-      return;
-    }
-    setIsSubmitting(true);
-    try {
-      const authResult = await authService.signUpWithUsername(username, password);
-      const signedUpUser = authResult.user ?? await authService.getCurrentUser();
-      if (!signedUpUser) {
-        throw new Error('Kontua sortu da, baina saioa ez da ireki. Saiatu saioa hasten.');
-      }
-
-      setUser(signedUpUser);
-      setUsername('');
-      setPassword('');
-      setView('info');
-      startAuthenticatedProfileSync(signedUpUser.id);
       navigate('/');
     } catch (error) {
       setAuthError(getErrorMessage(error));
@@ -172,25 +142,19 @@ export default function ProfilePage() {
     );
   }
 
-  // View: Login / Register
-  const isLogin = view === 'login';
-  const isValidUsername = username.trim().length >= 3;
-  const isValidPassword = password.length >= 6;
-  const isFormValid = isLogin ? (username.trim().length > 0 && password.length > 0) : (isValidUsername && isValidPassword);
+  const isFormValid = username.trim().length > 0 && password.length > 0;
 
-  if (!user && (view === 'login' || view === 'register')) {
+  if (!user) {
     return (
       <div className="p-6 space-y-6 pb-20 max-w-sm mx-auto">
-        <button onClick={() => { setView('info'); setAuthError(''); }} className="p-2 -ml-2 text-slate-400 hover:text-slate-600">
+        <button onClick={() => navigate('/')} className="p-2 -ml-2 text-slate-400 hover:text-slate-600">
           <ArrowLeft />
         </button>
         
         <div className="space-y-1">
-          <h2 className="text-3xl font-black text-slate-800 tracking-tight">
-            {isLogin ? 'Saioa hasi' : 'Kontua sortu'}
-          </h2>
+          <h2 className="text-3xl font-black text-slate-800 tracking-tight">Saioa hasi</h2>
           <p className="text-sm font-bold text-sky-600">
-            Hodeiko profila eta aurrerapen segurua aktibatu
+            Ikaslearen hodeiko profila modu seguruan kargatu
           </p>
         </div>
 
@@ -201,48 +165,72 @@ export default function ProfilePage() {
           </div>
         )}
 
-        <form onSubmit={isLogin ? handleSignIn : handleSignUp} className="space-y-4">
+        <form onSubmit={handleSignIn} className="space-y-4">
           <div className="space-y-1">
             <label className="text-xs font-black uppercase tracking-wider text-slate-500">Erabiltzailea</label>
-            <input 
-              type="text" 
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold focus:outline-none focus:border-sky-500 transition-colors"
-              placeholder="zure_izena"
-            />
+            <div className="relative">
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                autoComplete="username"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-11 font-bold transition-colors focus:border-sky-500 focus:outline-none"
+                placeholder="zure_izena"
+              />
+              {username.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUsername('');
+                    setAuthError('');
+                  }}
+                  className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white hover:text-slate-700"
+                  aria-label="Erabiltzailea garbitu"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
           </div>
           <div className="space-y-1">
             <label className="text-xs font-black uppercase tracking-wider text-slate-500">Pasahitza</label>
-            <input 
-              type="password" 
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold focus:outline-none focus:border-sky-500 transition-colors"
-              placeholder="••••••••"
-            />
-            {!isLogin && (
-              <p className={`text-[10px] font-bold mt-1 pl-1 ${
-                password.length === 0 ? 'text-slate-400' :
-                password.length < 6 ? 'text-amber-500' :
-                'text-emerald-500'
-              }`}>
-                {password.length === 0 ? 'Gutxienez 6 karaktere' :
-                 password.length < 6 ? 'Oraindik karaktere gehiago behar dira' :
-                 'Pasahitza egokia da'}
-              </p>
-            )}
+            <div className="relative">
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-11 font-bold transition-colors focus:border-sky-500 focus:outline-none"
+                placeholder="••••••••"
+              />
+              {password.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPassword('');
+                    setAuthError('');
+                  }}
+                  className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white hover:text-slate-700"
+                  aria-label="Pasahitza garbitu"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+            <p className="pl-1 text-[10px] font-bold text-slate-400">
+              Kontua ikastetxeak edo administratzaileak emanda sartzen da.
+            </p>
           </div>
 
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             disabled={isSubmitting || !isFormValid}
-            className="w-full mt-4 py-4 bg-sky-500 hover:bg-sky-600 active:scale-[0.98] transition-all text-white rounded-2xl font-black shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 flex justify-center items-center gap-2"
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-sky-500 py-4 font-black text-white shadow-sm transition-all hover:bg-sky-600 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100"
           >
             {isSubmitting && <RefreshCw size={16} className="animate-spin" />}
-            {isLogin ? 'Sartu' : 'Kontua sortu'}
+            Sartu
           </button>
         </form>
       </div>
@@ -261,14 +249,14 @@ export default function ProfilePage() {
       <div className="space-y-1">
           <h2 className="text-3xl font-black text-slate-800 tracking-tight">Nire profila</h2>
           <p className="text-sm font-bold text-slate-500">
-            {user ? 'Zure aurrerapena Supabasen gordetzen da.' : 'Konturik gabe ezin dugu aurrerapena modu premiumean gorde.'}
+            Zure aurrerapena Supabasen gordetzen da.
           </p>
       </div>
 
       <div className="bg-white rounded-3xl border border-slate-100 p-6 flex flex-col items-center space-y-4 shadow-sm relative overflow-hidden">
-        {user && <div className="absolute top-0 right-0 p-4 opacity-5 bg-sky-500 rounded-full blur-2xl w-32 h-32 -mr-10 -mt-10 pointer-events-none"></div>}
+        <div className="absolute top-0 right-0 p-4 opacity-5 bg-sky-500 rounded-full blur-2xl w-32 h-32 -mr-10 -mt-10 pointer-events-none"></div>
         
-        <div className={`w-20 h-20 rounded-full flex items-center justify-center ${user ? 'bg-sky-100 text-sky-600' : 'bg-slate-100 text-slate-400'}`}>
+        <div className="w-20 h-20 rounded-full flex items-center justify-center bg-sky-100 text-sky-600">
            <UserIcon size={40} />
         </div>
         
@@ -281,82 +269,66 @@ export default function ProfilePage() {
            </p>
         </div>
 
-        {!user && (
-          <div className="w-full pt-4 space-y-3">
-             <div className="text-center text-xs font-bold text-slate-500 mb-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                 Premium moduan jokatzeko eta aurrerapena ez galtzeko, kontua behar duzu.
-             </div>
-             <button onClick={() => setView('login')} className="w-full py-3 bg-sky-500 text-white rounded-xl font-black hover:bg-sky-600 transition">
-                 Saioa hasi
-             </button>
-             <button onClick={() => setView('register')} className="w-full py-3 bg-white border border-slate-200 text-slate-600 rounded-xl font-black hover:bg-slate-50 transition">
-                 Kontua sortu
-             </button>
-          </div>
-        )}
+        <div className="w-full pt-4 space-y-4">
+           <div className="grid grid-cols-2 gap-3 text-center">
+              <div className="bg-slate-50 rounded-2xl border border-slate-100 p-3">
+                 <p className="font-black text-slate-800 text-xl">{profile.stats.totalSessions}</p>
+                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Saioak</p>
+              </div>
+              <div className="bg-slate-50 rounded-2xl border border-slate-100 p-3">
+                 <p className="font-black text-slate-800 text-xl">{Math.round(profile.stats.globalAccuracy)}%</p>
+                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Asmatze tasa</p>
+              </div>
+           </div>
 
-        {user && (
-          <div className="w-full pt-4 space-y-4">
-             <div className="grid grid-cols-2 gap-3 text-center">
-                <div className="bg-slate-50 rounded-2xl border border-slate-100 p-3">
-                   <p className="font-black text-slate-800 text-xl">{profile.stats.totalSessions}</p>
-                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Saioak</p>
-                </div>
-                <div className="bg-slate-50 rounded-2xl border border-slate-100 p-3">
-                   <p className="font-black text-slate-800 text-xl">{Math.round(profile.stats.globalAccuracy)}%</p>
-                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Asmatze tasa</p>
-                </div>
-             </div>
+           <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-100 rounded-xl">
+               <div className="flex items-center gap-2">
+                   {profile.syncStatus === 'synced' ? (
+                      <CheckCircle2 size={16} className="text-emerald-500" />
+                   ) : profile.syncStatus === 'error' ? (
+                      <AlertCircle size={16} className="text-red-500" />
+                   ) : profile.syncStatus === 'auth_required' ? (
+                      <AlertCircle size={16} className="text-amber-500" />
+                   ) : (
+                      <RefreshCw size={16} className="text-sky-500" />
+                   )}
+                   <div className="flex flex-col">
+                       <span className="text-xs font-bold text-slate-700">
+                           {profile.syncStatus === 'synced'
+                             ? 'Sinkronizatuta'
+                             : profile.syncStatus === 'error'
+                               ? 'Ezin izan da sinkronizatu'
+                               : profile.syncStatus === 'auth_required'
+                                 ? 'Saioa behar da'
+                                 : profile.syncStatus === 'loading'
+                                   ? 'Profila kargatzen'
+                                   : 'Sinkronizatzeko zain'}
+                       </span>
+                       <span className="text-[9px] font-bold text-slate-400">
+                           {profile.lastCloudSyncAt ? new Date(profile.lastCloudSyncAt).toLocaleString() : 'Sekula ez'}
+                       </span>
+                   </div>
+               </div>
+               
+               <button 
+                  onClick={handleManualSync} 
+                  disabled={isSyncing}
+                  className="p-2 text-sky-600 hover:bg-sky-100 rounded-lg transition-colors disabled:opacity-50"
+               >
+                   <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""} />
+               </button>
+           </div>
 
-             <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-100 rounded-xl">
-                 <div className="flex items-center gap-2">
-                     {profile.syncStatus === 'synced' ? (
-                        <CheckCircle2 size={16} className="text-emerald-500" />
-                     ) : profile.syncStatus === 'error' ? (
-                        <AlertCircle size={16} className="text-red-500" />
-                     ) : profile.syncStatus === 'auth_required' ? (
-                        <AlertCircle size={16} className="text-amber-500" />
-                     ) : (
-                        <RefreshCw size={16} className="text-sky-500" />
-                     )}
-                     <div className="flex flex-col">
-                         <span className="text-xs font-bold text-slate-700">
-                             {profile.syncStatus === 'synced'
-                               ? 'Sinkronizatuta'
-                               : profile.syncStatus === 'error'
-                                 ? 'Ezin izan da sinkronizatu'
-                                 : profile.syncStatus === 'auth_required'
-                                   ? (user ? 'Profila prestatzen' : 'Saioa behar da')
-                                   : profile.syncStatus === 'loading'
-                                     ? 'Profila kargatzen'
-                                     : 'Sinkronizatzeko zain'}
-                         </span>
-                         <span className="text-[9px] font-bold text-slate-400">
-                             {profile.lastCloudSyncAt ? new Date(profile.lastCloudSyncAt).toLocaleString() : 'Sekula ez'}
-                         </span>
-                     </div>
-                 </div>
-                 
-                 <button 
-                    onClick={handleManualSync} 
-                    disabled={isSyncing}
-                    className="p-2 text-sky-600 hover:bg-sky-100 rounded-lg transition-colors disabled:opacity-50"
-                 >
-                     <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""} />
-                 </button>
-             </div>
-
-             <button 
-                onClick={handleSignOut}
-                disabled={isSubmitting} 
-                className="w-full py-3 bg-white border border-red-100 text-red-500 rounded-xl font-black hover:bg-red-50 transition flex items-center justify-center gap-2 mt-4"
-             >
-                 {isSubmitting && <RefreshCw size={16} className="animate-spin" />}
-                 {!isSubmitting && <LogOut size={16} />}
-                 Saioa itxi
-             </button>
-          </div>
-        )}
+           <button 
+              onClick={handleSignOut}
+              disabled={isSubmitting} 
+              className="w-full py-3 bg-white border border-red-100 text-red-500 rounded-xl font-black hover:bg-red-50 transition flex items-center justify-center gap-2 mt-4"
+           >
+               {isSubmitting && <RefreshCw size={16} className="animate-spin" />}
+               {!isSubmitting && <LogOut size={16} />}
+               Saioa itxi
+           </button>
+        </div>
       </div>
 
     </div>
