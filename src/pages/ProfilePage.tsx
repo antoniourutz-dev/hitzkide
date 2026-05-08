@@ -137,7 +137,7 @@ export default function ProfilePage() {
   if (loading) {
     return (
       <div className="p-6 flex justify-center items-center h-40">
-        <RefreshCw className="animate-spin text-sky-500" />
+        <RefreshCw className="animate-spin text-brand-primary" aria-hidden="true" />
       </div>
     );
   }
@@ -146,20 +146,20 @@ export default function ProfilePage() {
 
   if (!user) {
     return (
-      <div className="p-6 space-y-6 pb-20 max-w-sm mx-auto">
-        <button onClick={() => navigate('/')} className="p-2 -ml-2 text-slate-400 hover:text-slate-600">
+      <div className="space-y-6 pb-20 max-w-sm mx-auto">
+        <button onClick={() => navigate('/')} className="p-2 -ml-2 text-slate-700 hover:text-brand-primary">
           <ArrowLeft />
         </button>
         
         <div className="space-y-1">
-          <h2 className="text-3xl font-black text-slate-800 tracking-tight">Saioa hasi</h2>
-          <p className="text-sm font-bold text-sky-600">
+          <h2 className="text-3xl font-black text-brand-text tracking-tight">Saioa hasi</h2>
+          <p className="text-sm font-bold text-brand-primary">
             Ikaslearen hodeiko profila modu seguruan kargatu
           </p>
         </div>
 
         {authError && (
-          <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm font-bold flex items-center gap-2">
+          <div className="sleek-card p-3 bg-rose-50 text-rose-800 text-sm font-bold flex items-center gap-2">
             <AlertCircle size={16} />
             {authError}
           </div>
@@ -175,7 +175,7 @@ export default function ProfilePage() {
                 onChange={(e) => setUsername(e.target.value)}
                 required
                 autoComplete="username"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-11 font-bold transition-colors focus:border-sky-500 focus:outline-none"
+                className="w-full rounded-none border-[3px] border-brand-border bg-white px-4 py-3 pr-11 font-bold shadow-[6px_6px_0px_0px_#0f172a] transition-colors focus:outline-none"
                 placeholder="zure_izena"
               />
               {username.length > 0 && (
@@ -185,7 +185,7 @@ export default function ProfilePage() {
                     setUsername('');
                     setAuthError('');
                   }}
-                  className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white hover:text-slate-700"
+                  className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
                   aria-label="Erabiltzailea garbitu"
                 >
                   <X size={16} />
@@ -202,7 +202,7 @@ export default function ProfilePage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 autoComplete="current-password"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-11 font-bold transition-colors focus:border-sky-500 focus:outline-none"
+                className="w-full rounded-none border-[3px] border-brand-border bg-white px-4 py-3 pr-11 font-bold shadow-[6px_6px_0px_0px_#0f172a] transition-colors focus:outline-none"
                 placeholder="••••••••"
               />
               {password.length > 0 && (
@@ -212,7 +212,7 @@ export default function ProfilePage() {
                     setPassword('');
                     setAuthError('');
                   }}
-                  className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white hover:text-slate-700"
+                  className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
                   aria-label="Pasahitza garbitu"
                 >
                   <X size={16} />
@@ -227,7 +227,7 @@ export default function ProfilePage() {
           <button
             type="submit"
             disabled={isSubmitting || !isFormValid}
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-sky-500 py-4 font-black text-white shadow-sm transition-all hover:bg-sky-600 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100"
+            className="mt-4 w-full sleek-btn-primary bg-brand-primary disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSubmitting && <RefreshCw size={16} className="animate-spin" />}
             Sartu
@@ -239,49 +239,49 @@ export default function ProfilePage() {
 
   // View: Info / Dashboard
   return (
-    <div className="p-6 space-y-6 pb-20">
+    <div className="space-y-6 pb-20">
       <div className="flex justify-between items-center">
-        <button onClick={() => navigate('/')} className="p-2 -ml-2 text-slate-400 hover:text-slate-600">
+        <button onClick={() => navigate('/')} className="p-2 -ml-2 text-slate-700 hover:text-brand-primary">
           <ArrowLeft />
         </button>
       </div>
       
       <div className="space-y-1">
-          <h2 className="text-3xl font-black text-slate-800 tracking-tight">Nire profila</h2>
-          <p className="text-sm font-bold text-slate-500">
+          <h2 className="text-3xl font-black text-brand-text tracking-tight">Nire profila</h2>
+          <p className="text-sm font-bold text-slate-600">
             Zure aurrerapena Supabasen gordetzen da.
           </p>
       </div>
 
-      <div className="bg-white rounded-3xl border border-slate-100 p-6 flex flex-col items-center space-y-4 shadow-sm relative overflow-hidden">
+      <div className="sleek-card p-6 flex flex-col items-center space-y-4 relative overflow-hidden">
         <div className="absolute top-0 right-0 p-4 opacity-5 bg-sky-500 rounded-full blur-2xl w-32 h-32 -mr-10 -mt-10 pointer-events-none"></div>
         
-        <div className="w-20 h-20 rounded-full flex items-center justify-center bg-sky-100 text-sky-600">
+        <div className="w-20 h-20 rounded-full flex items-center justify-center bg-brand-primary text-white border-[3px] border-brand-border shadow-[6px_6px_0px_0px_#0f172a]">
            <UserIcon size={40} />
         </div>
         
         <div className="text-center">
-           <h3 className="font-black text-xl text-slate-800">
+           <h3 className="font-black text-xl text-brand-text">
              {authService.getDisplayName(user)}
            </h3>
            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
-             Maila: <span className="text-sky-600">{profile.currentLevel}</span>
+             Maila: <span className="text-brand-primary">{profile.currentLevel}</span>
            </p>
         </div>
 
         <div className="w-full pt-4 space-y-4">
            <div className="grid grid-cols-2 gap-3 text-center">
-              <div className="bg-slate-50 rounded-2xl border border-slate-100 p-3">
-                 <p className="font-black text-slate-800 text-xl">{profile.stats.totalSessions}</p>
+              <div className="sleek-card p-3 bg-slate-50">
+                 <p className="font-black text-brand-text text-xl">{profile.stats.totalSessions}</p>
                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Saioak</p>
               </div>
-              <div className="bg-slate-50 rounded-2xl border border-slate-100 p-3">
-                 <p className="font-black text-slate-800 text-xl">{Math.round(profile.stats.globalAccuracy)}%</p>
+              <div className="sleek-card p-3 bg-slate-50">
+                 <p className="font-black text-brand-text text-xl">{Math.round(profile.stats.globalAccuracy)}%</p>
                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Asmatze tasa</p>
               </div>
            </div>
 
-           <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-100 rounded-xl">
+           <div className="sleek-card flex items-center justify-between p-3 bg-slate-50">
                <div className="flex items-center gap-2">
                    {profile.syncStatus === 'synced' ? (
                       <CheckCircle2 size={16} className="text-emerald-500" />
@@ -290,7 +290,7 @@ export default function ProfilePage() {
                    ) : profile.syncStatus === 'auth_required' ? (
                       <AlertCircle size={16} className="text-amber-500" />
                    ) : (
-                      <RefreshCw size={16} className="text-sky-500" />
+                      <RefreshCw size={16} className="text-brand-primary" />
                    )}
                    <div className="flex flex-col">
                        <span className="text-xs font-bold text-slate-700">
@@ -313,7 +313,7 @@ export default function ProfilePage() {
                <button 
                   onClick={handleManualSync} 
                   disabled={isSyncing}
-                  className="p-2 text-sky-600 hover:bg-sky-100 rounded-lg transition-colors disabled:opacity-50"
+                  className="p-2 text-brand-primary hover:bg-slate-100 rounded-full transition-colors disabled:opacity-50"
                >
                    <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""} />
                </button>
@@ -322,7 +322,7 @@ export default function ProfilePage() {
            <button 
               onClick={handleSignOut}
               disabled={isSubmitting} 
-              className="w-full py-3 bg-white border border-red-100 text-red-500 rounded-xl font-black hover:bg-red-50 transition flex items-center justify-center gap-2 mt-4"
+              className="w-full sleek-btn-secondary bg-rose-50 text-rose-800 mt-4"
            >
                {isSubmitting && <RefreshCw size={16} className="animate-spin" />}
                {!isSubmitting && <LogOut size={16} />}

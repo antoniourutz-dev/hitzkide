@@ -30,8 +30,8 @@ const AdminCorpusCoveragePage = lazy(() => import('./pages/AdminCorpusCoveragePa
 function LoadingState() {
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3" role="status" aria-live="polite">
-      <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" aria-hidden="true" />
-      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Edukia prestatzen</p>
+      <div className="w-8 h-8 border-[3px] border-brand-border border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Edukia prestatzen</p>
     </div>
   );
 }
@@ -131,10 +131,10 @@ function AppContent() {
       <div className={cn("flex items-center gap-2", isGame && "scale-90 origin-left")}>
         {!isGame ? (
           <>
-            <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center shadow-sm">
-              <BookOpen className="w-5 h-5 text-white" />
+            <div className="w-9 h-9 bg-brand-primary rounded-none flex items-center justify-center border-[3px] border-brand-border shadow-[3px_3px_0px_0px_#0f172a]">
+              <BookOpen className="w-5 h-5 text-white" aria-hidden="true" />
             </div>
-            <h1 className="font-black text-slate-800 text-lg tracking-tight uppercase">Hitzkideak</h1>
+            <h1 className="font-black text-brand-text text-lg tracking-tight uppercase">Hitzkideak</h1>
           </>
         ) : (
           <h1 className="font-black text-slate-600 text-sm tracking-tight uppercase">Jolasten</h1>
@@ -143,14 +143,14 @@ function AppContent() {
 
       <div className="flex items-center gap-1">
         {!isOnline && (
-          <div className="flex items-center space-x-1.5 bg-red-50 text-red-600 px-2 py-0.5 rounded-full border border-red-100">
+          <div className="flex items-center space-x-1.5 bg-rose-50 text-rose-700 px-2 py-0.5 rounded-none border-[3px] border-brand-border shadow-[2px_2px_0px_0px_#0f172a]">
             <WifiOff size={10} strokeWidth={3} />
             <span className="text-[8px] font-black uppercase tracking-widest">Konexiorik gabe</span>
           </div>
         )}
         {(isGame || isResults) && isOnline && (
-          <div className="flex items-center bg-slate-100 px-2 py-0.5 rounded-full">
-            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none">
+          <div className="flex items-center bg-white px-2 py-0.5 rounded-none border-[3px] border-brand-border shadow-[2px_2px_0px_0px_#0f172a]">
+            <span className="text-[9px] font-black text-slate-700 uppercase tracking-widest leading-none">
               {isGame ? 'Jolasean' : 'Emaitza'}
             </span>
           </div>
@@ -158,7 +158,7 @@ function AppContent() {
         {isGame && (
           <button
             onClick={() => navigate('/')}
-            className="p-2 -mr-2 text-slate-500 hover:text-red-500 transition-colors"
+            className="p-2 -mr-2 text-slate-700 hover:text-rose-600 transition-colors"
             aria-label="Jokoa utzi eta hasierara itzuli"
           >
             <X size={20} aria-hidden="true" />
@@ -167,7 +167,7 @@ function AppContent() {
         {!isGame && location.pathname === '/' && (
           <button
             onClick={() => navigate('/settings')}
-            className="p-2 text-slate-500 hover:text-emerald-500 transition-colors"
+            className="p-2 text-slate-700 hover:text-brand-primary transition-colors"
             aria-label="Ezarpenak ireki"
           >
             <Settings size={20} aria-hidden="true" />
@@ -190,10 +190,10 @@ function AppContent() {
           aria-label={item.label}
           aria-current={location.pathname === item.path ? 'page' : undefined}
           className={cn(
-            "flex flex-col items-center gap-1 transition-all",
+            "flex flex-col items-center gap-1 transition-all px-2 py-1 rounded-none",
             location.pathname === item.path
-              ? "text-emerald-600 scale-110"
-              : "text-slate-400 opacity-40 hover:opacity-100"
+              ? "text-brand-primary"
+              : "text-slate-500 opacity-60 hover:opacity-100"
           )}
         >
           <item.icon size={20} aria-hidden="true" />

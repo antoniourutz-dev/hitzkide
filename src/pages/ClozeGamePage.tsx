@@ -187,7 +187,7 @@ export default function ClozeGamePage() {
   if (!accessChecked || loading) {
     return (
       <div className="flex flex-col items-center justify-center p-12 space-y-4" role="status" aria-live="polite">
-        <RefreshCw className="animate-spin text-sky-500" size={32} aria-hidden="true" />
+        <RefreshCw className="animate-spin text-brand-primary" size={32} aria-hidden="true" />
         <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Cloze saioa prestatzen</p>
       </div>
     );
@@ -196,20 +196,20 @@ export default function ClozeGamePage() {
   if (errorMessage || !currentQuestion) {
     return (
       <div className="p-6 space-y-6">
-        <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-amber-900" role="alert">
+        <div className="sleek-card p-6 bg-amber-50 text-amber-900" role="alert">
           <p className="text-sm font-black uppercase tracking-[0.18em] text-amber-700">Cloze ez dago prest</p>
           <p className="mt-2 text-sm font-semibold leading-relaxed">{errorMessage || 'Ez dago galderarik une honetan.'}</p>
         </div>
         <div className="space-y-3">
           <button
             onClick={() => setLoadAttempt((value) => value + 1)}
-            className="w-full py-4 bg-white text-slate-800 font-black rounded-2xl border border-slate-200"
+            className="w-full sleek-btn-secondary"
           >
             Berriro saiatu
           </button>
           <button
             onClick={handleBack}
-            className="w-full py-4 bg-sky-50 text-sky-700 font-black rounded-2xl border border-sky-200"
+            className="w-full sleek-btn-secondary bg-sky-50 text-sky-900"
           >
             Cloze hasierara itzuli
           </button>
@@ -219,20 +219,20 @@ export default function ClozeGamePage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       {completionError && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+        <div className="sleek-card p-4 bg-amber-50 text-sm font-semibold text-amber-900">
           {completionError}
         </div>
       )}
       <div className="flex justify-between items-center px-1">
         <div className="flex flex-col">
-           <h2 className="text-2xl font-black">Cloze testak</h2>
+           <h2 className="text-2xl font-black text-brand-text tracking-tight">Cloze testak</h2>
            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{currentIndex + 1} / {questions.length}</span>
         </div>
         <button
           onClick={handleBack}
-          className="p-2 -mr-2 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+          className="p-2 -mr-2 rounded-full text-slate-700 hover:text-rose-700 transition-colors"
           aria-label="Cloze hasierara itzuli"
         >
           <X size={24} aria-hidden="true" />

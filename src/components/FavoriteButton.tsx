@@ -14,9 +14,11 @@ export default function FavoriteButton({ isFavorite, onClick }: FavoriteButtonPr
         onClick();
       }}
       className={cn(
-        "p-2 rounded-xl transition-all active:scale-95",
-        isFavorite ? "bg-red-50 text-red-500" : "bg-slate-50 text-slate-300 hover:text-slate-400"
+        "p-2 rounded-full transition-all active:scale-95 border-[3px] border-brand-border shadow-[2px_2px_0px_0px_#0f172a]",
+        isFavorite ? "bg-rose-50 text-rose-700" : "bg-white text-slate-600 hover:text-slate-900"
       )}
+      aria-pressed={isFavorite}
+      aria-label={isFavorite ? 'Kendu gogokoetatik' : 'Gehitu gogokoetara'}
     >
       <Heart size={20} fill={isFavorite ? "currentColor" : "none"} />
     </button>

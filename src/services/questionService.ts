@@ -33,6 +33,21 @@ type CandidateWord = LexicalWord & {
   _groupId: number;
 };
 
+function normalizeReviewedLevel(raw: unknown): UserLevel | null {
+  if (typeof raw !== 'string' || raw.trim().length === 0) {
+    return null;
+  }
+
+  // Accept ranges like "B2-C1" or "B2–C1" and take the lower bound (first token).
+  const normalized = raw.replace(/[–—]/g, '-');
+  const firstPart = normalized.split('-')[0]?.trim();
+  if (!firstPart) {
+    return null;
+  }
+
+  return (LEVEL_ORDER as string[]).includes(firstPart) ? (firstPart as UserLevel) : null;
+}
+
 export async function buildSessionQuestions(
   allGroups: LexicalGroup[],
   profile: PlayerProfile,
@@ -185,7 +200,11 @@ export async function buildSessionQuestions(
   // Let's gather pools
   const now = new Date();
 
-  const isUnlockedGroup = (group: LexicalGroup) => unlockedLevels.includes(group.reviewed_level as UserLevel);
+  const getEffectiveLevel = (group: LexicalGroup) => normalizeReviewedLevel(group.reviewed_level) ?? null;
+  const isUnlockedGroup = (group: LexicalGroup) => {
+    const effectiveLevel = getEffectiveLevel(group);
+    return effectiveLevel ? unlockedLevels.includes(effectiveLevel) : false;
+  };
   const getMastery = (group: LexicalGroup) => profile.groupMastery[group.id];
   const getLastSeenTime = (group: LexicalGroup): number => {
     const timestamp = getMastery(group)?.lastSeenAt;
@@ -225,7 +244,7 @@ export async function buildSessionQuestions(
 
   const poolNewCurrentLevel = sortForSelection(validGroups.filter(g => {
     const mastery = getMastery(g);
-    return g.reviewed_level === currentLevel &&
+    return getEffectiveLevel(g) === currentLevel &&
       (!mastery || mastery.status === 'new') &&
       !isRecentlySeenGroup(g);
   }));
@@ -239,12 +258,13 @@ export async function buildSessionQuestions(
   }));
 
   const poolLevelExpansion = sortForSelection(validGroups.filter(g => {
-    const groupLevel = g.reviewed_level as UserLevel;
+    const groupLevel = getEffectiveLevel(g);
     const mastery = getMastery(g);
-    const isNextLevel = nextLevel && groupLevel === nextLevel;
+    const isNextLevel = Boolean(nextLevel && groupLevel && groupLevel === nextLevel);
     const isKnownUnlockedLevel = isUnlockedGroup(g);
 
-    return (isNextLevel || isKnownUnlockedLevel) &&
+    return Boolean(groupLevel) &&
+      (isNextLevel || isKnownUnlockedLevel) &&
       (!mastery || mastery.status === 'new') &&
       !isRecentlySeenGroup(g);
   }));
@@ -362,7 +382,7 @@ export async function buildSessionQuestions(
       relation: group.relation || '',
       grammar: group.grammar || '',
       category: group.category || '',
-      level: group.reviewed_level || undefined,
+      level: getEffectiveLevel(group) || undefined,
       contentLevel: group.reviewed_level || undefined,
       playerLevelAtGeneration: profile.currentLevel,
       reviewStatus: group.review_status || undefined,

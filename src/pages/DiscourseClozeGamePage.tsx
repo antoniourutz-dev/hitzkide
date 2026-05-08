@@ -148,7 +148,7 @@ export default function DiscourseClozeGamePage() {
   if (!accessChecked || loading) {
       return (
           <div className="flex flex-col items-center justify-center p-12 space-y-4" role="status" aria-live="polite">
-              <RefreshCw className="animate-spin text-sky-500" size={32} aria-hidden="true" />
+              <RefreshCw className="animate-spin text-brand-primary" size={32} aria-hidden="true" />
               <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Kargatzen...</p>
           </div>
       );
@@ -157,7 +157,7 @@ export default function DiscourseClozeGamePage() {
   if (error || !session || session.questions.length === 0) {
       return (
           <div className="p-6 space-y-6">
-              <div className="bg-red-50 text-red-800 p-6 rounded-3xl border border-red-100">
+              <div className="sleek-card p-6 bg-rose-50 text-rose-900">
                   <p className="font-bold">Ezin izan dira antolatzaileen galderak kargatu edo ez dago nahikorik maila honetarako.</p>
                   {!navigator.onLine && (
                     <p className="mt-2 text-sm font-medium text-red-700">
@@ -166,13 +166,13 @@ export default function DiscourseClozeGamePage() {
                   )}
               </div>
               <div className="space-y-3">
-                  <button onClick={() => setLoadAttempt((value) => value + 1)} className="w-full py-4 bg-white text-slate-800 font-black rounded-2xl border border-slate-200">
+                  <button onClick={() => setLoadAttempt((value) => value + 1)} className="w-full sleek-btn-secondary">
                       Berriro saiatu
                   </button>
-                  <button onClick={() => navigate('/')} className="w-full py-4 bg-emerald-50 text-emerald-700 font-black rounded-2xl border border-emerald-200">
+                  <button onClick={() => navigate('/')} className="w-full sleek-btn-secondary bg-emerald-50 text-emerald-900">
                       Sinonimoak landu
                   </button>
-                  <button onClick={() => navigate('/discourse')} className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl">
+                  <button onClick={() => navigate('/discourse')} className="w-full sleek-btn-primary bg-slate-900">
                       Hasierara itzuli
                   </button>
               </div>
@@ -240,20 +240,20 @@ export default function DiscourseClozeGamePage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       {completionError && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+        <div className="sleek-card p-4 bg-amber-50 text-sm font-semibold text-amber-900">
           {completionError}
         </div>
       )}
       <div className="flex justify-between items-center text-xs font-black uppercase tracking-widest text-slate-400">
           <div className="flex flex-col">
-            <span className="text-slate-800 text-lg">Antolatzaileak</span>
+            <span className="text-brand-text text-lg">Antolatzaileak</span>
             <span>{currentIndex + 1} / {session.total}</span>
           </div>
           <button
             onClick={() => navigate('/discourse')}
-            className="p-2 -mr-2 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            className="p-2 -mr-2 rounded-full text-slate-700 hover:text-rose-700 transition-colors"
             aria-label="Antolatzaileen hasierara itzuli"
           >
               <X size={24} aria-hidden="true" />

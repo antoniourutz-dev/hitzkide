@@ -1,5 +1,5 @@
 import { useEffect, useRef, type KeyboardEvent } from 'react';
-import { Check } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import { LexicalWord } from '../types/lexical';
 
 interface OptionButtonProps {
@@ -32,11 +32,13 @@ export default function OptionButton({ word, onClick, status = 'neutral', disabl
   const getStatusClasses = () => {
     switch (status) {
       case 'correct':
-        return 'option-btn-correct';
+        return 'bg-emerald-500 text-white border-emerald-700 shadow-[5px_5px_0px_0px_#047857]';
       case 'incorrect':
-        return 'option-btn-incorrect';
+        return 'bg-rose-500 text-white border-rose-700 shadow-[5px_5px_0px_0px_#be123c]';
       default:
-        return disabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-emerald-500 hover:bg-emerald-50';
+        return disabled
+          ? 'bg-white text-slate-900 border-brand-border shadow-[5px_5px_0px_0px_#0f172a] opacity-60 grayscale cursor-not-allowed'
+          : 'bg-white text-slate-900 border-brand-border shadow-[5px_5px_0px_0px_#0f172a] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[2px_2px_0px_0px_#0f172a]';
     }
   };
 
@@ -46,7 +48,7 @@ export default function OptionButton({ word, onClick, status = 'neutral', disabl
       onClick={onClick}
       onKeyDown={handleKeyDown}
       disabled={disabled}
-      className={`option-btn ${getStatusClasses()}`}
+      className={`sleek-btn-option group w-full flex items-center justify-between gap-4 ${getStatusClasses()}`}
       id={`option-${word.id}`}
       role="option"
       aria-selected={status !== 'neutral'}
@@ -55,22 +57,22 @@ export default function OptionButton({ word, onClick, status = 'neutral', disabl
       tabIndex={disabled ? -1 : 0}
     >
       <span className={`text-xl sm:text-2xl font-black tracking-tight ${
-        status === 'correct' ? 'text-success' : 
-        status === 'incorrect' ? 'text-error' : 
-        'text-ink group-hover:text-emerald-600'
+        status === 'correct' || status === 'incorrect' ? 'text-white' : 'text-slate-900 group-hover:text-emerald-700'
       }`}>
         {word.word}
       </span>
 
-      <div className={`w-10 h-10 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${
-        status === 'correct' ? 'bg-success border-success scale-100' :
-        status === 'incorrect' ? 'bg-error border-error scale-100' :
-        'border-hairline scale-90'
+      <div className={`w-10 h-10 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
+        status === 'correct' ? 'bg-emerald-700 border-emerald-800 scale-100' :
+        status === 'incorrect' ? 'bg-rose-700 border-rose-800 scale-100' :
+        'border-slate-300 scale-90'
       }`}>
-        {status === 'correct' || status === 'incorrect' ? (
+        {status === 'correct' ? (
           <Check size={18} className="text-white" strokeWidth={4} aria-hidden="true" />
+        ) : status === 'incorrect' ? (
+          <X size={18} className="text-white" strokeWidth={4} aria-hidden="true" />
         ) : (
-          <div className="w-1.5 h-1.5 bg-stone rounded-full" aria-hidden="true" />
+          <div className="w-1.5 h-1.5 bg-slate-400 rounded-full" aria-hidden="true" />
         )}
       </div>
     </button>

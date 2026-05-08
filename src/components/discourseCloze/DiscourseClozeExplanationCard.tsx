@@ -106,13 +106,20 @@ export default function DiscourseClozeExplanationCard({
   };
 
   return (
-    <div className={cn("p-6 rounded-3xl border-2 space-y-4", isCorrect ? "bg-emerald-50 border-emerald-500" : "bg-red-50 border-red-500")}>
-      <h3 className={cn("text-lg font-black uppercase tracking-widest", isCorrect ? "text-emerald-700" : "text-red-700")}>
+    <div
+      className={cn(
+        "sleek-card p-6 space-y-4",
+        isCorrect ? "bg-emerald-50" : "bg-rose-50"
+      )}
+    >
+      <h3 className={cn("text-lg font-black uppercase tracking-widest", isCorrect ? "text-emerald-800" : "text-rose-800")}>
         {isCorrect ? 'Zuzen!' : 'Oker!'}
       </h3>
       
       {!isCorrect && (
-          <p className="text-sm font-bold text-slate-700">Erantzun zuzena: <span className="font-black text-emerald-600">{question.answer}</span></p>
+          <p className="text-sm font-bold text-slate-800">
+            Erantzun zuzena: <span className="font-black text-emerald-700">{question.answer}</span>
+          </p>
       )}
 
       {/* Main explanation (always show if available) */}
@@ -120,7 +127,7 @@ export default function DiscourseClozeExplanationCard({
 
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="text-xs font-black text-slate-500 uppercase flex items-center gap-1 py-1"
+        className="text-xs font-black text-slate-700 uppercase flex items-center gap-2 py-1"
       >
         {isExpanded ? 'Ezkutatu azalpena' : 'Azalpen osoa ikusi'}
         {isExpanded ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
@@ -131,7 +138,7 @@ export default function DiscourseClozeExplanationCard({
            
            {/* Selected Option Analysis */}
            {selectedOptionExplanation && !isCorrect && (
-               <div className="bg-red-100/50 p-3 rounded-xl border border-red-200">
+               <div className="sleek-card bg-white p-3">
                    <ExplanationBlock 
                        title="Aukera honen azalpena" 
                        euText={selectedOptionExplanation.why_not_eu || selectedOptionExplanation.explanation_eu} 
@@ -149,7 +156,7 @@ export default function DiscourseClozeExplanationCard({
         </div>
       )}
 
-      <button onClick={onNext} className="w-full h-12 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest mt-4">
+      <button onClick={onNext} className="w-full sleek-btn-primary bg-slate-900 mt-4">
         Hurrengoa
       </button>
     </div>

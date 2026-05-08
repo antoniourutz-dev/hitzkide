@@ -106,16 +106,16 @@ function getPriorityBandClass(band: string | null | undefined): string {
 
 function MetricCard({ label, value, tone = 'neutral' }: { label: string; value: string | number; tone?: 'neutral' | 'good' | 'warning' | 'danger' }) {
   const toneClass = {
-    neutral: 'border-slate-200 bg-white text-slate-900',
-    good: 'border-emerald-200 bg-emerald-50 text-emerald-900',
-    warning: 'border-amber-200 bg-amber-50 text-amber-900',
-    danger: 'border-red-200 bg-red-50 text-red-900',
+    neutral: 'bg-white text-slate-900',
+    good: 'bg-emerald-50 text-emerald-900',
+    warning: 'bg-amber-50 text-amber-900',
+    danger: 'bg-rose-50 text-rose-900',
   }[tone];
 
   return (
-    <div className={`rounded-xl border p-4 ${toneClass}`}>
+    <div className={`sleek-card p-4 ${toneClass}`}>
       <p className="text-[10px] font-black uppercase tracking-widest opacity-70">{label}</p>
-      <p className="mt-2 text-2xl font-black tracking-normal">{value}</p>
+      <p className="mt-2 text-2xl font-black tracking-tight text-brand-text">{value}</p>
     </div>
   );
 }
@@ -126,17 +126,17 @@ function DistributionTable({ title, rows }: { title: string; rows: CoverageDistr
 
   return (
     <section className="space-y-3">
-      <h3 className="text-sm font-black text-slate-800">{title}</h3>
+      <h3 className="text-sm font-black text-brand-text">{title}</h3>
       <div className="space-y-2">
         {rows.slice(0, 12).map((row) => (
-          <div key={`${title}-${row.label}`} className="rounded-xl border border-slate-100 bg-white p-3">
+          <div key={`${title}-${row.label}`} className="sleek-card bg-white p-3">
             <div className="flex items-center justify-between gap-3 text-xs">
               <span className="font-bold text-slate-700 truncate">{humanizeInternalCode(row.label)}</span>
               <span className="font-black text-slate-900">{formatNumber(row.playable_count)} / {formatNumber(row.total_count)}</span>
             </div>
-            <div className="mt-2 h-2 rounded-full bg-slate-100 overflow-hidden">
+            <div className="mt-2 h-2 bg-slate-100 overflow-hidden border-b-[3px] border-brand-border">
               <div
-                className="h-full rounded-full bg-emerald-500"
+                className="h-full bg-brand-primary"
                 style={{ width: `${Math.max(4, (row.total_count / maxCount) * 100)}%` }}
               />
             </div>
@@ -492,7 +492,7 @@ export default function AdminCorpusCoveragePage() {
           <ArrowLeft size={16} />
           Itzuli
         </button>
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
+        <div className="sleek-card p-6 bg-amber-50 text-amber-900">
           <p className="font-black">Estaldura-datuak ez daude oraindik eskuragarri. Exekutatu migrazioa lehenik.</p>
         </div>
       </div>
@@ -506,7 +506,7 @@ export default function AdminCorpusCoveragePage() {
           <ArrowLeft size={16} />
           Itzuli
         </button>
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-900">
+        <div className="sleek-card p-6 bg-rose-50 text-rose-900">
           <p className="font-black">Ezin izan da corpusaren estaldura kargatu.</p>
           <p className="mt-2 text-sm font-semibold">{errorMessage}</p>
         </div>
@@ -516,7 +516,7 @@ export default function AdminCorpusCoveragePage() {
 
   if (!summary) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-slate-500 font-bold">
+      <div className="sleek-card bg-white p-6 text-center text-slate-600 font-bold">
         Ez dago corpus-daturik erakusteko.
       </div>
     );
@@ -525,12 +525,12 @@ export default function AdminCorpusCoveragePage() {
   return (
     <div className="space-y-8 pb-12">
       <div className="flex items-center justify-between gap-3">
-        <button onClick={() => navigate('/')} className="p-2 -ml-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+        <button onClick={() => navigate('/')} className="p-2 -ml-2 rounded-full text-slate-700 hover:text-brand-primary transition-colors" aria-label="Hasierara itzuli">
           <ArrowLeft size={20} />
         </button>
         <button
           onClick={() => void loadAll()}
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-600 hover:bg-slate-50"
+          className="sleek-btn-secondary px-3 py-2 text-xs h-auto"
         >
           <RefreshCw size={14} />
           Freskatu
@@ -538,8 +538,8 @@ export default function AdminCorpusCoveragePage() {
       </div>
 
       <header className="space-y-2">
-        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Hitzkideak v0.5-corpus-coverage-panel</p>
-        <h2 className="text-3xl font-black text-slate-900 tracking-normal">Corpusaren estaldura</h2>
+        <p className="text-[10px] font-black uppercase tracking-widest text-brand-accent">Hitzkideak v0.5-corpus-coverage-panel</p>
+        <h2 className="text-3xl font-black text-brand-text tracking-tight">Corpusaren estaldura</h2>
         <p className="text-sm font-semibold leading-relaxed text-slate-500">
           Barne-panela: corpusaren kalitatea, erabilgarritasuna eta jokoan sartzeko prestasuna aztertzeko.
         </p>
@@ -559,7 +559,7 @@ export default function AdminCorpusCoveragePage() {
       <section className="space-y-3">
         <div className="flex items-center gap-2">
           <ShieldAlert size={18} className="text-amber-500" />
-          <h3 className="text-lg font-black text-slate-900">Blokeo nagusiak</h3>
+          <h3 className="text-lg font-black text-brand-text">Blokeo nagusiak</h3>
         </div>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
           <MetricCard label="Jokotik kanpo" value={formatNumber(summary.disabled_for_game_count)} />
@@ -574,7 +574,7 @@ export default function AdminCorpusCoveragePage() {
       </section>
 
       <section className="space-y-3">
-        <h3 className="text-lg font-black text-slate-900">Hobekuntza editorialak</h3>
+        <h3 className="text-lg font-black text-brand-text">Hobekuntza editorialak</h3>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <MetricCard label="Oinarrizko jokagarriak" value={formatNumber(summary.playable_basic_count)} tone="good" />
           <MetricCard label="Premium jokagarriak" value={formatNumber(summary.playable_premium_count)} tone="good" />
@@ -586,7 +586,7 @@ export default function AdminCorpusCoveragePage() {
       <section className="space-y-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div className="space-y-1">
-            <h3 className="text-lg font-black text-slate-900">Lehentasun editoriala</h3>
+            <h3 className="text-lg font-black text-brand-text">Lehentasun editoriala</h3>
             <p className="text-sm font-semibold leading-relaxed text-slate-500">
               Jokoan sar daitezkeen baina oraindik premium ez diren taldeak lehenesteko zerrenda.
             </p>
@@ -594,7 +594,7 @@ export default function AdminCorpusCoveragePage() {
           <button
             onClick={() => exportEditorialPriorityToCsv(priorityRows)}
             disabled={priorityRows.length === 0}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-xs font-black text-white disabled:opacity-40"
+            className="sleek-btn-primary bg-brand-primary px-4 py-3 text-xs disabled:opacity-40"
           >
             <Download size={14} />
             Lehentasun editoriala CSV
@@ -602,11 +602,11 @@ export default function AdminCorpusCoveragePage() {
         </div>
 
         {priorityMissingView ? (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm font-bold text-amber-900">
+          <div className="sleek-card p-5 bg-amber-50 text-sm font-bold text-amber-900">
             Lehentasun editorialaren datuak ez daude oraindik eskuragarri. Exekutatu migrazioa lehenik.
           </div>
         ) : priorityErrorMessage ? (
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm font-bold text-red-900">
+          <div className="sleek-card p-5 bg-rose-50 text-sm font-bold text-rose-900">
             Ezin izan da lehentasun editoriala kargatu.
           </div>
         ) : prioritySummary ? (
@@ -623,31 +623,31 @@ export default function AdminCorpusCoveragePage() {
             </div>
 
             <div className="grid gap-2 md:grid-cols-4">
-              <select value={priorityFilters.priorityBand || 'all'} onChange={(event) => updatePriorityFilters({ priorityBand: event.target.value as EditorialPriorityFilters['priorityBand'] })} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-xs font-bold">
+              <select value={priorityFilters.priorityBand || 'all'} onChange={(event) => updatePriorityFilters({ priorityBand: event.target.value as EditorialPriorityFilters['priorityBand'] })} className="sleek-card bg-white px-3 py-3 text-xs font-bold">
                 {PRIORITY_BAND_FILTERS.map((filter) => <option key={filter.value} value={filter.value}>{filter.label}</option>)}
               </select>
-              <select value={priorityFilters.level || 'all'} onChange={(event) => updatePriorityFilters({ level: event.target.value })} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-xs font-bold">
+              <select value={priorityFilters.level || 'all'} onChange={(event) => updatePriorityFilters({ level: event.target.value })} className="sleek-card bg-white px-3 py-3 text-xs font-bold">
                 <option value="all">Maila guztiak</option>
                 {priorityLevelOptions.map((level) => <option key={level} value={level}>{level}</option>)}
               </select>
-              <select value={priorityFilters.category || 'all'} onChange={(event) => updatePriorityFilters({ category: event.target.value })} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-xs font-bold">
+              <select value={priorityFilters.category || 'all'} onChange={(event) => updatePriorityFilters({ category: event.target.value })} className="sleek-card bg-white px-3 py-3 text-xs font-bold">
                 <option value="all">Kategoria guztiak</option>
                 {priorityCategoryOptions.map((category) => <option key={category} value={category}>{getCategoryLabel(category)}</option>)}
               </select>
-              <select value={priorityFilters.questionType || 'all'} onChange={(event) => updatePriorityFilters({ questionType: event.target.value })} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-xs font-bold">
+              <select value={priorityFilters.questionType || 'all'} onChange={(event) => updatePriorityFilters({ questionType: event.target.value })} className="sleek-card bg-white px-3 py-3 text-xs font-bold">
                 <option value="all">Galdera mota guztiak</option>
                 {priorityQuestionTypeOptions.map((type) => <option key={type} value={type}>{getQuestionTypeLabel(type)}</option>)}
               </select>
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <button onClick={() => updatePriorityFilters({ missingExplanationOnly: !priorityFilters.missingExplanationOnly })} className={`rounded-full border px-3 py-2 text-[11px] font-black ${priorityFilters.missingExplanationOnly ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-slate-200 bg-white text-slate-500'}`}>
+              <button onClick={() => updatePriorityFilters({ missingExplanationOnly: !priorityFilters.missingExplanationOnly })} className={`rounded-full border-[3px] border-brand-border shadow-[2px_2px_0px_0px_#0f172a] px-3 py-2 text-[11px] font-black ${priorityFilters.missingExplanationOnly ? 'bg-amber-50 text-amber-900' : 'bg-white text-slate-700'}`}>
                 Azalpena falta da
               </button>
-              <button onClick={() => updatePriorityFilters({ missingExampleOnly: !priorityFilters.missingExampleOnly })} className={`rounded-full border px-3 py-2 text-[11px] font-black ${priorityFilters.missingExampleOnly ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-slate-200 bg-white text-slate-500'}`}>
+              <button onClick={() => updatePriorityFilters({ missingExampleOnly: !priorityFilters.missingExampleOnly })} className={`rounded-full border-[3px] border-brand-border shadow-[2px_2px_0px_0px_#0f172a] px-3 py-2 text-[11px] font-black ${priorityFilters.missingExampleOnly ? 'bg-amber-50 text-amber-900' : 'bg-white text-slate-700'}`}>
                 Adibidea falta da
               </button>
-              <button onClick={() => updatePriorityFilters({ missingContrastOnly: !priorityFilters.missingContrastOnly })} className={`rounded-full border px-3 py-2 text-[11px] font-black ${priorityFilters.missingContrastOnly ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-slate-200 bg-white text-slate-500'}`}>
+              <button onClick={() => updatePriorityFilters({ missingContrastOnly: !priorityFilters.missingContrastOnly })} className={`rounded-full border-[3px] border-brand-border shadow-[2px_2px_0px_0px_#0f172a] px-3 py-2 text-[11px] font-black ${priorityFilters.missingContrastOnly ? 'bg-amber-50 text-amber-900' : 'bg-white text-slate-700'}`}>
                 Kontrastea falta da
               </button>
             </div>
@@ -655,11 +655,11 @@ export default function AdminCorpusCoveragePage() {
             {priorityLoading ? (
               <LoadingState message="Lehentasun editoriala kargatzen..." />
             ) : priorityRows.length === 0 ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-slate-500 font-bold">Ez dago lehentasun editorialik erakusteko.</div>
+              <div className="sleek-card bg-white p-6 text-center text-slate-600 font-bold">Ez dago lehentasun editorialik erakusteko.</div>
             ) : (
-              <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+              <div className="overflow-x-auto sleek-card bg-white p-0">
                 <table className="min-w-[1180px] w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-[10px] uppercase tracking-widest text-slate-500">
+                  <thead className="bg-slate-50 text-[10px] uppercase tracking-widest text-slate-600 border-b-[3px] border-brand-border">
                     <tr>
                       <th className="px-3 py-3">ID</th>
                       <th className="px-3 py-3">source_id</th>
@@ -688,14 +688,14 @@ export default function AdminCorpusCoveragePage() {
                         <td className="px-3 py-3 font-black">{row.word_count}</td>
                         <td className="px-3 py-3 font-black text-slate-900">{row.priority_score}</td>
                         <td className="px-3 py-3">
-                          <span className={`rounded-full border px-2 py-1 text-[10px] font-black ${getPriorityBandClass(row.priority_band)}`}>
+                          <span className={`rounded-full border-[3px] border-brand-border shadow-[2px_2px_0px_0px_#0f172a] px-2 py-1 text-[10px] font-black ${getPriorityBandClass(row.priority_band)}`}>
                             {getPriorityBandLabel(row.priority_band)}
                           </span>
                         </td>
                         <td className="px-3 py-3 max-w-[300px]">
                           <div className="flex flex-wrap gap-1">
                             {row.priority_reasons.map((reason) => (
-                              <span key={`${row.id}-${reason}`} className="rounded-full bg-slate-50 px-2 py-1 text-[10px] font-bold text-slate-600">
+                              <span key={`${row.id}-${reason}`} className="rounded-full bg-slate-50 px-2 py-1 text-[10px] font-bold text-slate-700">
                                 {reason}
                               </span>
                             ))}
@@ -710,14 +710,14 @@ export default function AdminCorpusCoveragePage() {
             )}
           </>
         ) : (
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-slate-500 font-bold">Ez dago lehentasun editorialik erakusteko.</div>
+          <div className="sleek-card bg-white p-6 text-center text-slate-600 font-bold">Ez dago lehentasun editorialik erakusteko.</div>
         )}
       </section>
 
       <section className="space-y-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div className="space-y-1">
-            <h3 className="text-lg font-black text-slate-900">Bikoiztu editorialak</h3>
+            <h3 className="text-lg font-black text-brand-text">Bikoiztu editorialak</h3>
             <p className="text-sm font-semibold leading-relaxed text-slate-500">
               Hitz multzo berdinak edo errepikatuak detektatzeko barne-auditoria.
             </p>
@@ -725,7 +725,7 @@ export default function AdminCorpusCoveragePage() {
           <div className="flex flex-col gap-2 sm:flex-row">
             <button
               onClick={() => void loadDuplicates()}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-xs font-black text-slate-600 hover:bg-slate-50"
+              className="sleek-btn-secondary px-4 py-3 text-xs h-auto"
             >
               <RefreshCw size={14} />
               Freskatu
@@ -733,7 +733,7 @@ export default function AdminCorpusCoveragePage() {
             <button
               onClick={() => exportDuplicateRowsToCsv(duplicateRows)}
               disabled={duplicateRows.length === 0}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-xs font-black text-white disabled:opacity-40"
+              className="sleek-btn-primary bg-slate-900 px-4 py-3 text-xs disabled:opacity-40"
             >
               <Download size={14} />
               Bikoiztuak CSV
@@ -742,11 +742,11 @@ export default function AdminCorpusCoveragePage() {
         </div>
 
         {duplicateMissingView ? (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm font-bold text-amber-900">
+          <div className="sleek-card p-5 bg-amber-50 text-sm font-bold text-amber-900">
             Bikoiztuen datuak ez daude oraindik eskuragarri. Exekutatu migrazioa lehenik.
           </div>
         ) : duplicateErrorMessage ? (
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm font-bold text-red-900">
+          <div className="sleek-card p-5 bg-rose-50 text-sm font-bold text-rose-900">
             Ezin izan da bikoiztuen auditoria kargatu.
           </div>
         ) : duplicateSummary ? (
@@ -759,20 +759,20 @@ export default function AdminCorpusCoveragePage() {
               <MetricCard label="Ebatzi gabe" value={formatNumber(duplicateSummary.pending_duplicate_set_count)} tone="warning" />
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-              <h4 className="text-sm font-black text-slate-900">Ebazpen kontrolatua</h4>
+            <div className="sleek-card bg-slate-50 p-5">
+              <h4 className="text-sm font-black text-brand-text">Ebazpen kontrolatua</h4>
               <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-600">
                 Duplicatuak eskuz berrikusi ondoren bakarrik desaktibatu behar dira. Funtzio honek ez du daturik ezabatzen;
                 talde bikoiztu ez-kanonikoak jokotik kanpo uzten ditu.
               </p>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <div className="rounded-xl bg-white p-3">
+                <div className="sleek-card bg-white p-3">
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Dry run</p>
                   <code className="mt-2 block whitespace-pre-wrap text-xs font-bold text-slate-700">
                     select * from public.resolve_lexical_exact_duplicates(true);
                   </code>
                 </div>
-                <div className="rounded-xl bg-white p-3">
+                <div className="sleek-card bg-white p-3">
                   <p className="text-[10px] font-black uppercase tracking-widest text-red-400">Aplikatu eskuz</p>
                   <code className="mt-2 block whitespace-pre-wrap text-xs font-bold text-slate-700">
                     select * from public.resolve_lexical_exact_duplicates(false);
@@ -784,11 +784,11 @@ export default function AdminCorpusCoveragePage() {
             {duplicateLoading ? (
               <LoadingState message="Bikoiztuen auditoria kargatzen..." />
             ) : duplicateRows.length === 0 ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-slate-500 font-bold">Ez dago bikoizturik erakusteko.</div>
+              <div className="sleek-card bg-white p-6 text-center text-slate-600 font-bold">Ez dago bikoizturik erakusteko.</div>
             ) : (
-              <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+              <div className="overflow-x-auto sleek-card bg-white p-0">
                 <table className="min-w-[1180px] w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-[10px] uppercase tracking-widest text-slate-500">
+                  <thead className="bg-slate-50 text-[10px] uppercase tracking-widest text-slate-600 border-b-[3px] border-brand-border">
                     <tr>
                       <th className="px-3 py-3">Hitz multzoa</th>
                       <th className="px-3 py-3">Kop.</th>
@@ -811,7 +811,7 @@ export default function AdminCorpusCoveragePage() {
                         <tr key={row.normalized_word_set} className={`align-top ${isLargeDuplicateSet || hasPlayableDuplicate ? 'bg-amber-50/40' : ''}`}>
                           <td className="px-3 py-3 font-black text-slate-900 max-w-[240px]">{row.normalized_word_set}</td>
                           <td className="px-3 py-3">
-                            <span className={`rounded-full px-2 py-1 text-[10px] font-black ${isLargeDuplicateSet ? 'bg-red-50 text-red-700' : 'bg-slate-50 text-slate-600'}`}>
+                            <span className={`rounded-full border-[3px] border-brand-border shadow-[2px_2px_0px_0px_#0f172a] px-2 py-1 text-[10px] font-black ${isLargeDuplicateSet ? 'bg-rose-50 text-rose-900' : 'bg-slate-50 text-slate-700'}`}>
                               {row.duplicate_count}
                             </span>
                           </td>
@@ -824,9 +824,9 @@ export default function AdminCorpusCoveragePage() {
                           <td className="px-3 py-3">{row.playable_flags.map((value) => value ? 'Bai' : 'Ez').join(' / ')}</td>
                           <td className="px-3 py-3 max-w-[240px]">
                             <div className="flex flex-wrap gap-1">
-                              {isLargeDuplicateSet && <span className="rounded-full bg-red-50 px-2 py-1 text-[10px] font-black text-red-700">4+ aldiz</span>}
-                              {hasPlayableDuplicate && <span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700">Jokagarri errepikatuak</span>}
-                              {hasPriorityDuplicate && <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">Lehentasun ilaran</span>}
+                              {isLargeDuplicateSet && <span className="rounded-full bg-rose-50 px-2 py-1 text-[10px] font-black text-rose-900">4+ aldiz</span>}
+                              {hasPlayableDuplicate && <span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-900">Jokagarri errepikatuak</span>}
+                              {hasPriorityDuplicate && <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-900">Lehentasun ilaran</span>}
                             </div>
                           </td>
                         </tr>
@@ -838,12 +838,12 @@ export default function AdminCorpusCoveragePage() {
             )}
           </>
         ) : (
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-slate-500 font-bold">Ez dago bikoizturik erakusteko.</div>
+          <div className="sleek-card bg-white p-6 text-center text-slate-600 font-bold">Ez dago bikoizturik erakusteko.</div>
         )}
       </section>
 
       <section className="space-y-5">
-        <h3 className="text-lg font-black text-slate-900">Banaketak</h3>
+        <h3 className="text-lg font-black text-brand-text">Banaketak</h3>
         <div className="grid gap-5 md:grid-cols-2">
           <DistributionTable title="Mailaka" rows={byLevel} />
           <DistributionTable title="Kategoriaka" rows={byCategory} />
@@ -857,12 +857,12 @@ export default function AdminCorpusCoveragePage() {
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2">
             <Table2 size={18} className="text-slate-500" />
-            <h3 className="text-lg font-black text-slate-900">Lexical groups</h3>
+            <h3 className="text-lg font-black text-brand-text">Lexical groups</h3>
           </div>
           <button
             onClick={() => exportRowsToCsv(rows)}
             disabled={rows.length === 0}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-xs font-black text-white disabled:opacity-40"
+            className="sleek-btn-primary bg-slate-900 px-4 py-3 text-xs disabled:opacity-40"
           >
             <Download size={14} />
             CSV esportatu
@@ -870,18 +870,18 @@ export default function AdminCorpusCoveragePage() {
         </div>
 
         <div className="grid gap-2 md:grid-cols-4">
-          <select value={filters.status || 'all'} onChange={(event) => updateFilters({ status: event.target.value as LexicalCoverageFilters['status'] })} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-xs font-bold">
+          <select value={filters.status || 'all'} onChange={(event) => updateFilters({ status: event.target.value as LexicalCoverageFilters['status'] })} className="sleek-card bg-white px-3 py-3 text-xs font-bold">
             {STATUS_FILTERS.map((filter) => <option key={filter.value} value={filter.value}>{filter.label}</option>)}
           </select>
-          <select value={filters.level || 'all'} onChange={(event) => updateFilters({ level: event.target.value })} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-xs font-bold">
+          <select value={filters.level || 'all'} onChange={(event) => updateFilters({ level: event.target.value })} className="sleek-card bg-white px-3 py-3 text-xs font-bold">
             <option value="all">Maila guztiak</option>
             {levelOptions.map((level) => <option key={level} value={level}>{level}</option>)}
           </select>
-          <select value={filters.category || 'all'} onChange={(event) => updateFilters({ category: event.target.value })} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-xs font-bold">
+          <select value={filters.category || 'all'} onChange={(event) => updateFilters({ category: event.target.value })} className="sleek-card bg-white px-3 py-3 text-xs font-bold">
             <option value="all">Kategoria guztiak</option>
             {categoryOptions.map((category) => <option key={category} value={category}>{getCategoryLabel(category)}</option>)}
           </select>
-          <select value={filters.questionType || 'all'} onChange={(event) => updateFilters({ questionType: event.target.value })} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-xs font-bold">
+          <select value={filters.questionType || 'all'} onChange={(event) => updateFilters({ questionType: event.target.value })} className="sleek-card bg-white px-3 py-3 text-xs font-bold">
             <option value="all">Galdera mota guztiak</option>
             {questionTypeOptions.map((type) => <option key={type} value={type}>{getQuestionTypeLabel(type)}</option>)}
           </select>
@@ -890,11 +890,11 @@ export default function AdminCorpusCoveragePage() {
         {rowsLoading ? (
           <LoadingState message="Taula kargatzen..." />
         ) : rows.length === 0 ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-slate-500 font-bold">Ez dago corpus-daturik erakusteko.</div>
+          <div className="sleek-card bg-white p-6 text-center text-slate-600 font-bold">Ez dago corpus-daturik erakusteko.</div>
         ) : (
-          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+          <div className="overflow-x-auto sleek-card bg-white p-0">
             <table className="min-w-[1180px] w-full text-left text-xs">
-              <thead className="bg-slate-50 text-[10px] uppercase tracking-widest text-slate-500">
+              <thead className="bg-slate-50 text-[10px] uppercase tracking-widest text-slate-600 border-b-[3px] border-brand-border">
                 <tr>
                   <th className="px-3 py-3">ID</th>
                   <th className="px-3 py-3">source_id</th>
@@ -927,7 +927,7 @@ export default function AdminCorpusCoveragePage() {
                     <td className="px-3 py-3">{row.quality_level || '-'}</td>
                     <td className="px-3 py-3">{getQuestionTypeLabel(row.recommended_question_type) || '-'}</td>
                     <td className="px-3 py-3">
-                      <span className={`rounded-full px-2 py-1 text-[10px] font-black ${row.is_playable ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                      <span className={`rounded-full border-[3px] border-brand-border shadow-[2px_2px_0px_0px_#0f172a] px-2 py-1 text-[10px] font-black ${row.is_playable ? 'bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900'}`}>
                         {row.is_playable ? 'Bai' : 'Ez'}
                       </span>
                     </td>

@@ -7,28 +7,36 @@ export default function SettingsPage() {
   const [language, setLanguage] = useLanguagePreference();
 
   return (
-    <div className="flex flex-col space-y-6 p-6">
+    <div className="flex flex-col space-y-6">
       <div className="flex items-center space-x-4">
-        <button onClick={() => navigate('/')} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+        <button onClick={() => navigate('/')} className="p-2 rounded-full text-slate-700 hover:text-brand-primary transition-colors">
           <ArrowLeft size={24} />
         </button>
-        <h2 className="text-2xl font-black text-slate-800 tracking-tight">Ezarpenak</h2>
+        <h2 className="text-2xl font-black text-brand-text tracking-tight">Ezarpenak</h2>
       </div>
 
-      <div className="bg-white rounded-3xl p-6 border-2 border-slate-50 shadow-sm space-y-4">
-        <h3 className="text-lg font-bold">Azalpenen hizkuntza</h3>
+      <div className="sleek-card p-6 space-y-4">
+        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">Hizkuntza</p>
+        <h3 className="text-lg font-bold text-brand-text">Azalpenen hizkuntza</h3>
         <div className="grid grid-cols-1 gap-2">
           {(['eu', 'es', 'both'] as LanguagePreference[]).map((lang) => (
             <button
               key={lang}
               onClick={() => setLanguage(lang)}
-              className={`p-4 rounded-2xl font-bold border-2 transition-all ${
+              className={[
+                'sleek-btn-option w-full flex items-center justify-between gap-3',
                 language === lang
-                  ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                  : 'border-slate-100 text-slate-600 hover:border-slate-200'
-              }`}
+                  ? 'bg-brand-primary text-white border-brand-border shadow-[5px_5px_0px_0px_#0f172a]'
+                  : 'bg-white text-slate-900 border-brand-border shadow-[5px_5px_0px_0px_#0f172a]',
+              ].join(' ')}
+              aria-pressed={language === lang}
             >
-              {lang === 'eu' ? 'Euskara' : lang === 'es' ? 'Gaztelania' : 'Biak'}
+              <span className="text-left">
+                {lang === 'eu' ? 'Euskara' : lang === 'es' ? 'Gaztelania' : 'Biak'}
+              </span>
+              <span className="text-xs font-black tracking-widest opacity-80">
+                {language === lang ? 'ON' : ''}
+              </span>
             </button>
           ))}
         </div>

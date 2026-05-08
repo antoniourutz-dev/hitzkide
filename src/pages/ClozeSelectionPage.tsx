@@ -13,14 +13,18 @@ export default function ClozeSelectionPage() {
   }, []);
 
   return (
-    <div className="p-6 space-y-6">
-      <button onClick={() => navigate('/')} className="p-2 -ml-2" aria-label="Hasierara itzuli">
+    <div className="space-y-6">
+      <button onClick={() => navigate('/')} className="p-2 -ml-2 rounded-full text-slate-700 hover:text-brand-primary transition-colors" aria-label="Hasierara itzuli">
         <ArrowLeft aria-hidden="true" />
       </button>
-      <h2 className="text-2xl font-black">Cloze testak</h2>
-      <p>Ikasi hitzak testuinguruan, ñabardurak eta erabilera zaindua landuz.</p>
+      <div className="space-y-2">
+        <h2 className="text-2xl font-black text-brand-text tracking-tight">Cloze testak</h2>
+        <p className="text-slate-700">
+          Ikasi hitzak testuinguruan, ñabardurak eta erabilera zaindua landuz.
+        </p>
+      </div>
       {!user && (
-        <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm font-semibold text-sky-900">
+        <div className="sleek-card p-4 bg-sky-50 text-sm font-semibold text-sky-900">
           Saioa hasi behar duzu cloze saioak jokatu eta aurrerapena Supabasen gordetzeko.
         </div>
       )}
@@ -29,9 +33,10 @@ export default function ClozeSelectionPage() {
           <button
             key={size}
             onClick={() => navigate(user ? `/cloze/${size}` : '/profile')}
-            className="p-4 bg-sky-100 hover:bg-sky-200 rounded-2xl font-bold"
+            className="sleek-card-interactive p-4 bg-sky-50 font-black text-left"
           >
-            Saioa: {size} galdera
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-sky-800/70">Saioa</span>
+            <div className="text-lg font-black text-sky-900">{size} galdera</div>
           </button>
         ))}
       </div>

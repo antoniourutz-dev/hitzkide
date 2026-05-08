@@ -21,28 +21,28 @@ export default function DiscourseClozeHomePage() {
   }, []);
 
   return (
-    <div className="p-6 space-y-6 pb-20">
+    <div className="space-y-6 pb-20">
       <div className="flex justify-between items-center">
-        <button onClick={() => navigate('/')} className="p-2 -ml-2 text-slate-400 hover:text-slate-600" aria-label="Hasierara itzuli">
+        <button onClick={() => navigate('/')} className="p-2 -ml-2 text-slate-700 hover:text-brand-primary transition-colors" aria-label="Hasierara itzuli">
           <ArrowLeft aria-hidden="true" />
         </button>
-        <button onClick={() => navigate('/stats')} className="p-2 text-slate-400 hover:text-sky-500" aria-label="Estatistikak ikusi">
+        <button onClick={() => navigate('/stats')} className="p-2 text-slate-700 hover:text-brand-primary transition-colors" aria-label="Estatistikak ikusi">
           <BarChart2 aria-hidden="true" />
         </button>
       </div>
 
       <div className="space-y-2">
-          <h2 className="text-3xl font-black text-slate-800 tracking-tight">Antolatzaileak</h2>
-          <p className="font-bold text-sky-600">Testua lotu, ideiak antolatu eta ñabardurak landu</p>
+          <h2 className="text-3xl font-black text-brand-text tracking-tight">Antolatzaileak</h2>
+          <p className="font-bold text-brand-accent">Testua lotu, ideiak antolatu eta ñabardurak landu</p>
       </div>
 
       {!user && (
-        <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm font-semibold text-sky-900">
+        <div className="sleek-card p-4 bg-sky-50 text-sm font-semibold text-sky-900">
           Saioa hasi behar duzu antolatzaileen aurrerapena Supabasen gordetzeko.
         </div>
       )}
 
-      <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm space-y-4">
+      <div className="sleek-card p-5 space-y-4">
           <div>
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Zure egoera</p>
               {stats.totalSessions === 0 ? (
@@ -72,11 +72,11 @@ export default function DiscourseClozeHomePage() {
           </div>
 
           <div className="flex gap-2">
-              <button onClick={() => navigate('/stats')} className="flex-1 py-2 bg-slate-50 text-slate-600 rounded-xl text-xs font-black shadow-sm border border-slate-200">
+              <button onClick={() => navigate('/stats')} className="flex-1 sleek-btn-secondary text-xs py-2 px-3">
                   Estatistikak
               </button>
               {reviewCount > 0 && (
-                  <button onClick={() => navigate(user ? `/discourse/10/review` : '/profile')} className="flex-1 py-2 bg-orange-50 text-orange-600 rounded-xl text-xs font-black shadow-sm border border-orange-200 flex items-center justify-center gap-1">
+                  <button onClick={() => navigate(user ? `/discourse/10/review` : '/profile')} className="flex-1 sleek-btn-secondary bg-orange-50 text-orange-800 text-xs py-2 px-3 flex items-center justify-center gap-2">
                       <RefreshCw size={14} /> Errepasatu
                   </button>
               )}
@@ -91,7 +91,7 @@ export default function DiscourseClozeHomePage() {
         {reviewCount > 0 && (
           <button
              onClick={() => navigate(user ? '/discourse/10/review' : '/profile')}
-             className="relative flex flex-col items-start p-4 bg-orange-50 border border-orange-200 hover:border-orange-400 active:scale-95 rounded-2xl transition-all shadow-sm"
+             className="sleek-card-interactive relative flex flex-col items-start p-4 bg-orange-50"
           >
              <div className="absolute top-4 right-4 text-orange-400">
                  <RefreshCw size={20} />
@@ -105,7 +105,7 @@ export default function DiscourseClozeHomePage() {
           <button
              key={size}
              onClick={() => navigate(user ? `/discourse/${size}/normal` : '/profile')}
-             className="flex flex-col items-start p-4 bg-white border border-slate-200 hover:border-sky-300 hover:bg-sky-50 rounded-2xl transition-all shadow-sm active:scale-95"
+             className="sleek-card-interactive flex flex-col items-start p-4 bg-white"
           >
             <span className="font-black text-slate-800">
                 {size === 5 ? 'Saio azkarra' : size === 10 ? 'Entrenamendua' : 'Erronka'}
@@ -117,11 +117,10 @@ export default function DiscourseClozeHomePage() {
         <button
            disabled={!isAdituaUnlocked}
            onClick={() => user ? (isAdituaUnlocked && navigate('/discourse/10/aditua')) : navigate('/profile')}
-           className={`flex flex-col items-start p-4 rounded-2xl transition-all shadow-sm border ${
-             isAdituaUnlocked
-                ? "bg-emerald-50 border-emerald-200 hover:border-emerald-400 active:scale-95"
-                : "bg-slate-50 border-slate-100 opacity-70"
-           }`}
+           className={[
+             'sleek-card-interactive flex flex-col items-start p-4',
+             isAdituaUnlocked ? 'bg-emerald-50' : 'bg-slate-50 opacity-70 cursor-not-allowed',
+           ].join(' ')}
         >
             <span className={`font-black ${isAdituaUnlocked ? "text-emerald-800" : "text-slate-400"}`}>Aditu modua</span>
             <span className={`text-xs font-bold uppercase tracking-wider ${isAdituaUnlocked ? "text-emerald-600" : "text-slate-400"}`}>
@@ -130,7 +129,7 @@ export default function DiscourseClozeHomePage() {
         </button>
       </div>
 
-      <button onClick={() => navigate('/stats')} className="w-full mt-4 flex items-center justify-center gap-2 p-4 bg-slate-100 text-slate-700 font-black rounded-2xl hover:bg-slate-200 transition-colors">
+      <button onClick={() => navigate('/stats')} className="w-full sleek-btn-secondary mt-4 flex items-center justify-center gap-3">
           <BarChart2 size={20} />
           Estatistikak ikusi
       </button>

@@ -65,10 +65,10 @@ export default function FeedbackPanel({
         onClick={onNext}
         onKeyDown={handleKeyDown}
         className={cn(
-          "w-full h-16 rounded-3xl font-black text-lg transition-all active:scale-98 shadow-lg",
+          "w-full h-16 text-lg",
           isCorrect
-            ? "bg-emerald-500 text-white shadow-emerald-100"
-            : "bg-slate-800 text-white shadow-slate-200"
+            ? "sleek-btn-primary bg-emerald-600"
+            : "sleek-btn-primary bg-slate-900"
         )}
         aria-label={isLast ? "Emaitza ikusi" : "Jarraitu hurrengo galderara"}
       >
@@ -83,7 +83,7 @@ export default function FeedbackPanel({
             setIsExplanationOpen(!isExplanationOpen);
           }
         }}
-        className="w-full text-center text-xs font-black text-slate-400 uppercase tracking-widest py-2 active:bg-slate-50 transition-colors"
+        className="w-full text-center text-xs font-black text-slate-600 uppercase tracking-widest py-2 active:bg-slate-50 transition-colors"
         aria-expanded={isExplanationOpen}
         aria-controls="explanation-content"
       >

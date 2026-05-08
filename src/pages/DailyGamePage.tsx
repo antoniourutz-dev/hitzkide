@@ -156,7 +156,7 @@ export default function DailyGamePage({ onToast }: DailyGamePageProps) {
   if (!accessChecked || !currentQuestion) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-[3px] border-brand-border border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -166,25 +166,28 @@ export default function DailyGamePage({ onToast }: DailyGamePageProps) {
       <div className="space-y-3">
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-black text-slate-800 bg-slate-100 px-2 py-0.5 rounded-full">{profile.currentLevel}</span>
+            <span className="text-[10px] font-black text-brand-text bg-white px-2 py-0.5 rounded-none border-[3px] border-brand-border shadow-[2px_2px_0px_0px_#0f172a]">
+              {profile.currentLevel}
+            </span>
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{currentIndex + 1} / {questions.length}</span>
           </div>
           <div className="flex items-center gap-3">
             <FavoriteButton isFavorite={isFavorite} onClick={toggleFav} />
             <button
               onClick={handleQuit}
-              className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              className="p-2 rounded-full text-slate-700 hover:text-rose-700 transition-colors"
               aria-label="Saioa utzi eta hasierara itzuli"
             >
               <X size={20} aria-hidden="true" />
             </button>
           </div>
         </div>
-        <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+        <div className="h-2 bg-slate-100 overflow-hidden border-b-[3px] border-brand-border">
           <motion.div
             initial={{ width: 0 }}
             animate={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
-            className="h-full bg-emerald-500 rounded-full"
+            transition={{ duration: 0.5 }}
+            className="h-full bg-brand-primary"
           />
         </div>
       </div>
@@ -198,20 +201,20 @@ export default function DailyGamePage({ onToast }: DailyGamePageProps) {
           className="flex-1 flex flex-col space-y-6 pb-4"
         >
           <div className="text-center space-y-2 pt-2">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.1em]">
+            <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">
               Zein da sinonimo egokia?
             </p>
-            <h2 className="text-3xl sm:text-5xl font-black text-slate-800 leading-tight tracking-tighter uppercase px-2">
+            <h2 className="text-3xl sm:text-5xl font-black text-brand-text leading-tight tracking-tighter uppercase px-2">
               {currentQuestion.promptWord.word}
             </h2>
             <div className="flex flex-wrap items-center justify-center gap-1">
               {currentQuestion.reviewStatus === 'reviewed_register_sensitive' && (
-                <div className="px-1.5 py-0.5 bg-purple-50 text-[8px] font-black text-purple-600 rounded-md border border-purple-100 uppercase tracking-widest">
+                <div className="px-2 py-0.5 bg-purple-50 text-[8px] font-black text-purple-700 rounded-none border-[3px] border-brand-border uppercase tracking-widest shadow-[2px_2px_0px_0px_#0f172a]">
                   Erregistroa
                 </div>
               )}
               {currentQuestion.questionType === 'intensity_question' && (
-                <div className="px-1.5 py-0.5 bg-orange-50 text-[8px] font-black text-orange-600 rounded-md border border-orange-100 uppercase tracking-widest">
+                <div className="px-2 py-0.5 bg-orange-50 text-[8px] font-black text-orange-700 rounded-none border-[3px] border-brand-border uppercase tracking-widest shadow-[2px_2px_0px_0px_#0f172a]">
                   Erronka
                 </div>
               )}

@@ -61,27 +61,27 @@ export default function ReviewPage() {
   return (
     <div className="flex flex-col space-y-6">
       <div className="flex items-center space-x-4">
-        <button onClick={() => navigate('/')} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+        <button onClick={() => navigate('/')} className="p-2 rounded-full text-slate-700 hover:text-brand-primary transition-colors">
           <ArrowLeft size={24} />
         </button>
-        <h2 className="text-2xl font-black text-slate-800 tracking-tight">Berrikuspena</h2>
+        <h2 className="text-2xl font-black text-brand-text tracking-tight">Berrikuspena</h2>
       </div>
 
       <div className="space-y-4">
         <div className="relative">
-          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
+          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
           <input
             type="text"
             placeholder="Bilatu hitza..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-4 bg-white border-2 border-slate-50 rounded-2xl focus:outline-none focus:border-emerald-500 transition-all font-medium text-sm shadow-sm"
+            className="w-full pl-12 pr-4 py-4 bg-white border-[3px] border-brand-border rounded-none shadow-[6px_6px_0px_0px_#0f172a] focus:outline-none transition-all font-medium text-sm"
           />
         </div>
 
         <div className="flex overflow-x-auto pb-4 space-x-2 no-scrollbar">
-          <div className="flex items-center bg-slate-100 px-3 py-2 rounded-xl border border-slate-200">
-            <Filter size={14} className="text-slate-400 mr-2" />
+          <div className="flex items-center bg-white px-3 py-2 rounded-none border-[3px] border-brand-border shadow-[3px_3px_0px_0px_#0f172a]">
+            <Filter size={14} className="text-slate-600 mr-2" />
             <select 
               value={filters.level} 
               onChange={e => setFilters(f => ({ ...f, level: e.target.value }))}
@@ -91,7 +91,7 @@ export default function ReviewPage() {
               {uniqueLevels.map(l => <option key={l} value={l!}>{getLevelLabel(l)}</option>)}
             </select>
           </div>
-          <div className="flex items-center bg-slate-100 px-3 py-2 rounded-xl border border-slate-200">
+          <div className="flex items-center bg-white px-3 py-2 rounded-none border-[3px] border-brand-border shadow-[3px_3px_0px_0px_#0f172a]">
             <select 
               value={filters.category} 
               onChange={e => setFilters(f => ({ ...f, category: e.target.value }))}
@@ -101,7 +101,7 @@ export default function ReviewPage() {
               {uniqueCategories.map(c => <option key={c} value={c!}>{getCategoryLabel(c)}</option>)}
             </select>
           </div>
-          <div className="flex items-center bg-slate-100 px-3 py-2 rounded-xl border border-slate-200">
+          <div className="flex items-center bg-white px-3 py-2 rounded-none border-[3px] border-brand-border shadow-[3px_3px_0px_0px_#0f172a]">
             <select 
               value={filters.status} 
               onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}
@@ -122,24 +122,24 @@ export default function ReviewPage() {
             Aurkitutakoak: {filteredGroups.length}
           </p>
           {filteredGroups.map(group => (
-            <div key={group.id} className="bg-white border-2 border-slate-50 rounded-3xl p-6 shadow-sm space-y-4">
+            <div key={group.id} className="sleek-card p-6 space-y-4">
                <div className="flex justify-between items-start">
                  <div>
-                   <h4 className="text-xl font-bold text-slate-800">{getConceptLabel(group.concept)}</h4>
-                   <p className="text-xs text-slate-400 font-medium italic">{group.meaning_es}</p>
+                   <h4 className="text-xl font-black text-brand-text tracking-tight">{getConceptLabel(group.concept)}</h4>
+                   <p className="text-xs text-slate-600 font-medium">{group.meaning_es}</p>
                  </div>
                  <div className={group.is_active ? "text-emerald-500" : "text-slate-300"}>
                    <Eye size={20} />
                  </div>
                </div>
                <div className="flex flex-wrap gap-2">
-                 <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded">{getGrammarLabel(group.grammar)}</span>
-                 <span className="text-[10px] font-semibold bg-purple-50 text-purple-600 px-2 py-0.5 rounded">{getReviewStatusLabel(group.review_status)}</span>
-                 {group.category && <span className="text-[10px] font-semibold bg-blue-50 text-blue-600 px-2 py-0.5 rounded">{getCategoryLabel(group.category)}</span>}
+                 <span className="px-2 py-0.5 bg-white text-[9px] font-black uppercase tracking-widest text-slate-700 border-[3px] border-brand-border shadow-[2px_2px_0px_0px_#0f172a]">{getGrammarLabel(group.grammar)}</span>
+                 <span className="px-2 py-0.5 bg-purple-50 text-[9px] font-black uppercase tracking-widest text-purple-800 border-[3px] border-brand-border shadow-[2px_2px_0px_0px_#0f172a]">{getReviewStatusLabel(group.review_status)}</span>
+                 {group.category && <span className="px-2 py-0.5 bg-blue-50 text-[9px] font-black uppercase tracking-widest text-blue-800 border-[3px] border-brand-border shadow-[2px_2px_0px_0px_#0f172a]">{getCategoryLabel(group.category)}</span>}
                </div>
-               <div className="pt-4 border-t border-slate-50 grid grid-cols-2 gap-2">
+               <div className="pt-4 border-t-[3px] border-brand-border grid grid-cols-2 gap-2">
                  {group.words.map(w => (
-                   <span key={w.id} className="text-sm font-bold text-slate-600 flex items-center bg-slate-50 px-3 py-2 rounded-xl">
+                   <span key={w.id} className="text-sm font-black text-slate-800 flex items-center bg-white px-3 py-2 border-[3px] border-brand-border shadow-[3px_3px_0px_0px_#0f172a] uppercase tracking-tight">
                       {w.word}
                    </span>
                  ))}

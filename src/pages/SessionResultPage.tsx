@@ -1,15 +1,18 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { CheckCircle2, Award, RefreshCw, Home, BookOpen, ChevronRight } from 'lucide-react';
-import { SessionResult, MasteryStatus } from '../types/stats';
+import { RefreshCw, Home } from 'lucide-react';
+import { SessionResult } from '../types/stats';
 import { playerService } from '../services/playerService';
 import { useNavigate } from 'react-router-dom';
+import { authService } from '../services/authService';
+import { fetchGameData, hasCachedGameData } from '../services/lexicalService';
+import { buildSessionQuestions } from '../services/questionService';
 import {
   SESSION_STORAGE_KEYS,
   readJsonFromSessionStorage,
   removeSessionStorageItem,
+  writeJsonToSessionStorage,
 } from '../lib/storage';
-import { getConceptLabel } from '../utils/labels';
 import { usePlayerProfile } from '../hooks/usePlayerProfile';
 
 interface SessionResultPageProps {
@@ -23,15 +26,6 @@ type StoredResultPayload = {
   mode?: string;
 };
 
-const STATUS_LABELS: Record<MasteryStatus, string> = {
-  new: 'Berria',
-  seen: 'Ikusita',
-  learning: 'Ikasten',
-  reviewing: 'Berrikasten',
-  known: 'Ezaguna',
-  mastered: 'Menderatuta'
-};
-
 export default function SessionResultPage({ onToast: _onToast }: SessionResultPageProps) {
   const navigate = useNavigate();
   const profile = usePlayerProfile();
@@ -40,6 +34,7 @@ export default function SessionResultPage({ onToast: _onToast }: SessionResultPa
   const [storedResult, setStoredResult] = useState<StoredResultPayload | null>(null);
   const [isPersisting, setIsPersisting] = useState(false);
   const [syncError, setSyncError] = useState<'auth_required' | 'sync_failed' | null>(null);
+  const [isReplaying, setIsReplaying] = useState(false);
   const hasProcessed = useRef(false);
 
   const persistStoredResult = useCallback(async (payload: StoredResultPayload) => {
@@ -88,7 +83,7 @@ export default function SessionResultPage({ onToast: _onToast }: SessionResultPa
   if (!result && syncError) {
     return (
       <div className="p-6 space-y-5">
-        <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
+        <div className="sleek-card p-6 bg-amber-50 text-amber-900">
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-700">Sinkronizazioa behar da</p>
           <p className="mt-2 text-sm font-semibold leading-relaxed">
             {syncError === 'auth_required'
@@ -99,21 +94,21 @@ export default function SessionResultPage({ onToast: _onToast }: SessionResultPa
         <div className="space-y-3">
           <button
             onClick={() => storedResult && void persistStoredResult(storedResult)}
-            className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black"
+            className="w-full sleek-btn-primary bg-emerald-600"
           >
             Berriro saiatu
           </button>
           {syncError === 'auth_required' && (
             <button
               onClick={() => navigate('/profile')}
-              className="w-full py-4 bg-sky-50 text-sky-700 rounded-2xl font-black border border-sky-200"
+              className="w-full sleek-btn-secondary bg-sky-50 text-sky-800"
             >
               Saioa hasi
             </button>
           )}
           <button
             onClick={() => navigate('/')}
-            className="w-full py-4 bg-slate-100 text-slate-700 rounded-2xl font-black"
+            className="w-full sleek-btn-secondary"
           >
             Hasierara itzuli
           </button>
@@ -126,7 +121,7 @@ export default function SessionResultPage({ onToast: _onToast }: SessionResultPa
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-8 h-8 border-[3px] border-brand-border border-t-transparent rounded-full animate-spin" />
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Supabasen gordetzen</p>
         </div>
       </div>
@@ -154,81 +149,97 @@ export default function SessionResultPage({ onToast: _onToast }: SessionResultPa
   const reqReview = progress.missingRequirements.find(r => r.label === 'Berrikusteko')?.isMet;
   const reqMastery = progress.missingRequirements.find(r => r.label === 'Ezagutza')?.isMet;
   const knowledgeGap = reqQuestions && reqAccuracy && reqReview && !reqMastery;
+  const replayMode = (storedResult?.mode || result.mode || 'main') as 'main' | 'quick' | 'review';
+
+  const handleReplay = async () => {
+    if (isReplaying) return;
+    setIsReplaying(true);
+    try {
+      const user = await authService.getCurrentUser().catch(() => null);
+      if (!user) {
+        navigate('/profile');
+        return;
+      }
+
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      const hasOfflineData = hasCachedGameData();
+      if (!isOnline && !hasOfflineData) {
+        _onToast?.('Konexiorik gabe zaude, eta oraindik ez dugu edukirik gorde gailu honetan.', 'warning');
+        return;
+      }
+
+      const allGroups = await fetchGameData();
+      if (!allGroups || allGroups.length === 0) {
+        _onToast?.('Datuak ezin izan dira kargatu. Mesedez, ziurtatu konexioa ondo dagoela.', 'warning');
+        return;
+      }
+
+      const { questions, generatedCount } = await buildSessionQuestions(allGroups, profile, replayMode);
+      if (generatedCount < 3 || questions.length === 0) {
+        _onToast?.('Ez dago nahikoa galdera saio berri bat sortzeko.', 'warning');
+        return;
+      }
+
+      writeJsonToSessionStorage(SESSION_STORAGE_KEYS.questions, questions);
+      navigate(`/game/${replayMode}`);
+    } finally {
+      setIsReplaying(false);
+    }
+  };
 
   return (
     <div className="flex flex-col space-y-10 py-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="text-center space-y-4">
-        <div className="relative inline-block">
-          <svg className="w-32 h-32 -rotate-90">
-            <circle cx="64" cy="64" r="58" fill="none" stroke="#f1f5f9" strokeWidth="8" />
-            <circle
-              cx="64" cy="64" r="58" fill="none"
-              stroke={percentage === 100 ? '#10b981' : percentage >= 60 ? '#f59e0b' : '#ef4444'}
-              strokeWidth="8"
-              strokeDasharray={`${(percentage / 100) * 364.4} 364.4`}
-              strokeLinecap="round"
-            />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-4xl font-black text-slate-800">{percentage}%</span>
+        <div className="sleek-card inline-flex items-center justify-center p-6">
+          <div className="relative">
+            <svg className="w-32 h-32 -rotate-90">
+              <circle cx="64" cy="64" r="58" fill="none" stroke="#e2e8f0" strokeWidth="10" />
+              <circle
+                cx="64" cy="64" r="58" fill="none"
+                stroke={percentage === 100 ? '#10b981' : percentage >= 60 ? '#f59e0b' : '#ef4444'}
+                strokeWidth="10"
+                strokeDasharray={`${(percentage / 100) * 364.4} 364.4`}
+                strokeLinecap="butt"
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-4xl font-black text-brand-text tracking-tight">{percentage}%</span>
+            </div>
           </div>
         </div>
 
         <div className="space-y-1">
-          <h2 className="text-2xl font-black text-slate-800 tracking-tight">{getMessage(result.score, result.total)}</h2>
-          <p className="text-slate-500 font-medium">{result.score}/{result.total} zuzen</p>
-          <p className="text-slate-400 text-xs font-medium">{getSubMessage(result.mode, result.total)}</p>
+          <h2 className="text-2xl font-black text-brand-text tracking-tight">{getMessage(result.score, result.total)}</h2>
+          <p className="text-slate-700 font-medium">{result.score}/{result.total} zuzen</p>
+          <p className="text-slate-600 text-xs font-medium">{getSubMessage(result.mode, result.total)}</p>
         </div>
       </div>
 
-      {result.statusChanges.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Aldaketak</h3>
-          <div className="space-y-2">
-            {result.statusChanges.map((change, idx) => (
-              <motion.div
-                key={`${change.groupId}-${idx}`}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.1 }}
-                className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-100"
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                    change.newStatus === 'mastered' ? 'bg-emerald-100 text-emerald-600' :
-                    change.newStatus === 'known' ? 'bg-blue-100 text-blue-600' :
-                    change.newStatus === 'learning' ? 'bg-amber-100 text-amber-600' :
-                    'bg-slate-100 text-slate-400'
-                  }`}>
-                    {change.newStatus === 'mastered' ? <Award size={16} /> :
-                     change.newStatus === 'known' ? <CheckCircle2 size={16} /> :
-                     change.newStatus === 'learning' ? <RefreshCw size={16} /> :
-                     <BookOpen size={16} />}
-                  </div>
-                  <span className="text-sm font-bold text-slate-700">{getConceptLabel(change.concept)}</span>
-                </div>
-                <div className="flex items-center gap-2 text-[10px]">
-                  <span className="text-slate-400">{STATUS_LABELS[change.oldStatus]}</span>
-                  <ChevronRight size={12} className="text-slate-300" />
-                  <span className="text-emerald-600 font-black">{STATUS_LABELS[change.newStatus]}</span>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <button
+          onClick={handleReplay}
+          className="sleek-btn-primary bg-brand-primary"
+          disabled={isReplaying}
+        >
+          {isReplaying ? (
+            <>
+              <RefreshCw size={18} className="animate-spin" aria-hidden="true" />
+              Saio berria...
+            </>
+          ) : (
+            'Berriro jokatu'
+          )}
+        </button>
         <button
           onClick={() => navigate('/')}
-          className="flex items-center justify-center gap-2 py-4 bg-emerald-500 text-white rounded-2xl font-bold tracking-wide active:scale-95 transition-all shadow-md shadow-emerald-200"
+          className="sleek-btn-secondary"
         >
           <Home size={18} />
           Hasiera
         </button>
         <button
           onClick={() => navigate('/review')}
-          className="flex items-center justify-center gap-2 py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold tracking-wide active:scale-95 transition-all"
+          className="sleek-btn-secondary"
         >
           <RefreshCw size={18} />
           Errepasoa
@@ -240,7 +251,7 @@ export default function SessionResultPage({ onToast: _onToast }: SessionResultPa
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="p-4 bg-amber-50 border border-amber-100 rounded-2xl space-y-2"
+            className="sleek-card p-4 bg-amber-50 space-y-2"
           >
             <h4 className="text-sm font-black text-amber-800">Ez gertu zaude oraingoz?</h4>
             <p className="text-xs text-amber-700 leading-relaxed">
@@ -252,7 +263,7 @@ export default function SessionResultPage({ onToast: _onToast }: SessionResultPa
 
       <button
         onClick={() => setShowDetails(!showDetails)}
-        className="w-full text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-emerald-500 transition-colors"
+        className="w-full text-[10px] font-black text-slate-600 uppercase tracking-widest hover:text-brand-primary transition-colors"
       >
         {showDetails ? 'Ezkutatu' : 'Erakutsi'} xehetasunak
       </button>
@@ -266,7 +277,7 @@ export default function SessionResultPage({ onToast: _onToast }: SessionResultPa
             className="space-y-2 overflow-hidden"
           >
             {result.answers.map((answer, idx) => (
-              <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-100 text-sm">
+              <div key={idx} className="sleek-card flex items-center justify-between p-3 text-sm">
                 <span className="text-slate-700">{answer.correctAnswer}</span>
                 <span className={`font-black text-xs ${answer.isCorrect ? 'text-emerald-600' : 'text-red-500'}`}>
                   {answer.isCorrect ? 'ZUZEN' : 'OKERRA'}

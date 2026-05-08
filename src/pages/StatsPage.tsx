@@ -41,7 +41,7 @@ export default function StatsPage() {
   return (
     <div className="flex flex-col space-y-8 py-2">
       <div className="flex items-center justify-between">
-        <button onClick={() => navigate('/')} className="p-3 bg-slate-100/50 hover:bg-slate-100 rounded-2xl transition-colors">
+        <button onClick={() => navigate('/')} className="p-2 rounded-full text-slate-700 hover:text-brand-primary transition-colors" aria-label="Hasierara itzuli">
           <ArrowLeft size={20} />
         </button>
         <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Estatistikak</span>
@@ -49,53 +49,54 @@ export default function StatsPage() {
       </div>
 
       {/* Progress Card */}
-      <div className="card p-8 bg-slate-900 border-none space-y-6 relative overflow-hidden shadow-xl shadow-slate-200">
-        <div className="flex justify-between items-start relative z-10 text-white">
+      <div className="sleek-card p-6 md:p-8 space-y-6 relative overflow-hidden">
+        <div className="flex justify-between items-start relative z-10">
           <div className="space-y-1">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Uneko maila</span>
-            <h3 className="text-4xl font-black">{profile.currentLevel}</h3>
+            <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Uneko maila</span>
+            <h3 className="text-4xl font-black text-brand-text">{profile.currentLevel}</h3>
           </div>
-          <div className="bg-white/10 p-3 rounded-2xl backdrop-blur-md border border-white/5">
-            <Award size={28} className="text-emerald-400" />
+          <div className="p-3 rounded-none bg-amber-50 border-[3px] border-brand-border shadow-[3px_3px_0px_0px_#0f172a]">
+            <Award size={28} className="text-amber-700" />
           </div>
         </div>
 
         <div className="space-y-3 relative z-10">
-          <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-400">
+          <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-600">
             <span>Aurrerapena</span>
             <span>{progress.totalProgress}%</span>
           </div>
-          <div className="h-3 bg-white/10 rounded-full overflow-hidden p-0.5">
+          <div className="h-3 bg-slate-100 overflow-hidden border-[3px] border-brand-border">
             <motion.div 
               initial={{ width: 0 }}
               animate={{ width: `${progress.totalProgress}%` }}
-              className="h-full bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.4)]"
+              transition={{ duration: 0.5 }}
+              className="h-full bg-brand-primary"
             />
           </div>
           {knowledgeGap && (
-            <p className="text-[10px] font-bold text-emerald-400 text-center animate-pulse pt-1">
+            <p className="text-[10px] font-bold text-brand-accent text-center pt-1">
               Ia prest zaude: talde batzuk gehiago sendotu behar dituzu.
             </p>
           )}
         </div>
         
-        <div className="absolute top-[-20%] right-[-10%] w-64 h-64 bg-emerald-500/10 rounded-full blur-[80px]"></div>
+        <div className="absolute top-[-20%] right-[-10%] w-64 h-64 bg-brand-primary/10 rounded-full blur-[80px]"></div>
       </div>
 
       {/* Words Summary */}
       <div className="space-y-4">
         <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest px-2">Hitzak</h3>
         <div className="grid grid-cols-3 gap-3">
-          <div className="bg-white border border-slate-100 rounded-2xl p-4 flex flex-col items-center text-center space-y-1 shadow-sm">
-            <span className="text-lg font-black text-slate-800">{wordMastery.mastered}</span>
+          <div className="sleek-card p-4 flex flex-col items-center text-center space-y-1">
+            <span className="text-lg font-black text-brand-text">{wordMastery.mastered}</span>
             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Menperatuta</span>
           </div>
-          <div className="bg-white border border-slate-100 rounded-2xl p-4 flex flex-col items-center text-center space-y-1 shadow-sm">
-            <span className="text-lg font-black text-slate-800">{wordMastery.known}</span>
+          <div className="sleek-card p-4 flex flex-col items-center text-center space-y-1">
+            <span className="text-lg font-black text-brand-text">{wordMastery.known}</span>
             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Ezagunak</span>
           </div>
-          <div className="bg-white border border-slate-100 rounded-2xl p-4 flex flex-col items-center text-center space-y-1 shadow-sm">
-            <span className="text-lg font-black text-slate-800">{wordMastery.reviewing + wordMastery.learning}</span>
+          <div className="sleek-card p-4 flex flex-col items-center text-center space-y-1">
+            <span className="text-lg font-black text-brand-text">{wordMastery.reviewing + wordMastery.learning}</span>
             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Ikasten</span>
           </div>
         </div>
@@ -105,16 +106,16 @@ export default function StatsPage() {
       <div className="space-y-4">
         <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest px-2">Taldeak</h3>
         <div className="grid grid-cols-3 gap-3">
-          <div className="bg-white border border-slate-100 rounded-2xl p-4 flex flex-col items-center text-center space-y-1 shadow-sm">
-            <span className="text-lg font-black text-slate-800">{mastery.mastered}</span>
+          <div className="sleek-card p-4 flex flex-col items-center text-center space-y-1">
+            <span className="text-lg font-black text-brand-text">{mastery.mastered}</span>
             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Menperatuta</span>
           </div>
-          <div className="bg-white border border-slate-100 rounded-2xl p-4 flex flex-col items-center text-center space-y-1 shadow-sm">
-            <span className="text-lg font-black text-slate-800">{mastery.known}</span>
+          <div className="sleek-card p-4 flex flex-col items-center text-center space-y-1">
+            <span className="text-lg font-black text-brand-text">{mastery.known}</span>
             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Ezagunak</span>
           </div>
-          <div className="bg-white border border-slate-100 rounded-2xl p-4 flex flex-col items-center text-center space-y-1 shadow-sm">
-            <span className="text-lg font-black text-slate-800">{mastery.reviewing + mastery.learning}</span>
+          <div className="sleek-card p-4 flex flex-col items-center text-center space-y-1">
+            <span className="text-lg font-black text-brand-text">{mastery.reviewing + mastery.learning}</span>
             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Ikasten</span>
           </div>
         </div>
@@ -125,7 +126,7 @@ export default function StatsPage() {
         <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest px-2">Antolatzaileak</h3>
         
         {discourseStats.totalSessions === 0 ? (
-          <div className="bg-white border border-slate-100 rounded-2xl p-6 text-center space-y-2 shadow-sm">
+          <div className="sleek-card p-6 text-center space-y-2">
              <p className="font-bold text-slate-700">Oraindik ez duzu saiorik jokatu.</p>
              <p className="text-sm text-slate-500">Jokatu lehen saioa estatistikak biltzen hasteko.</p>
           </div>
@@ -140,7 +141,7 @@ export default function StatsPage() {
                                  diagnosis.globalStatus === 'needs_reinforcement' ? 'bg-amber-50 border-amber-100' : 'bg-sky-50 border-sky-100';
 
                 return (
-                    <div className={`rounded-2xl border p-5 space-y-3 ${statusBg}`}>
+                    <div className={`sleek-card p-5 space-y-3 ${statusBg}`}>
                         <p className={`text-[10px] font-black uppercase tracking-widest ${statusColor} opacity-70`}>Diagnostikoa</p>
                         <p className={`font-black text-lg ${statusColor}`}>{diagnosis.mainMessageEu}</p>
                         {diagnosis.secondaryMessageEu && (
@@ -152,7 +153,7 @@ export default function StatsPage() {
                                 <p className={`text-xs font-bold ${statusColor} opacity-80 uppercase tracking-widest`}>Indartu beharreko arloak:</p>
                                 <div className="flex flex-wrap gap-2">
                                     {diagnosis.weakestFunctions.map(f => (
-                                        <span key={f.functionCode} className="px-2 py-1 bg-white rounded-lg text-xs font-bold text-slate-700 shadow-sm">
+                                        <span key={f.functionCode} className="px-2 py-1 bg-white rounded-none border-[3px] border-brand-border shadow-[2px_2px_0px_0px_#0f172a] text-xs font-black text-slate-700 uppercase tracking-widest">
                                             {f.labelEu}
                                         </span>
                                     ))}
@@ -169,32 +170,32 @@ export default function StatsPage() {
             })()}
 
             <div className="grid grid-cols-2 gap-3">
-               <div className="bg-white border border-slate-100 rounded-2xl p-4 flex flex-col items-center text-center space-y-1 shadow-sm">
-                  <span className="text-lg font-black text-slate-800">{discourseStats.totalSessions}</span>
+               <div className="sleek-card p-4 flex flex-col items-center text-center space-y-1">
+                  <span className="text-lg font-black text-brand-text">{discourseStats.totalSessions}</span>
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Saioak</span>
                </div>
-               <div className="bg-white border border-slate-100 rounded-2xl p-4 flex flex-col items-center text-center space-y-1 shadow-sm">
-                  <span className="text-lg font-black text-slate-800">{Math.round(discourseStats.accuracy * 100)}%</span>
+               <div className="sleek-card p-4 flex flex-col items-center text-center space-y-1">
+                  <span className="text-lg font-black text-brand-text">{Math.round(discourseStats.accuracy * 100)}%</span>
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Asmatze tasa</span>
                </div>
             </div>
             
             <div className="grid grid-cols-3 gap-3">
-               <div className="bg-white border border-slate-100 rounded-2xl p-4 flex flex-col items-center text-center space-y-1 shadow-sm">
-                  <span className="text-lg font-black text-slate-800">{discourseStats.masterySummary.mastered}</span>
+               <div className="sleek-card p-4 flex flex-col items-center text-center space-y-1">
+                  <span className="text-lg font-black text-brand-text">{discourseStats.masterySummary.mastered}</span>
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Menderatuta</span>
                </div>
-               <div className="bg-white border border-slate-100 rounded-2xl p-4 flex flex-col items-center text-center space-y-1 shadow-sm">
-                  <span className="text-lg font-black text-slate-800">{discourseStats.masterySummary.known}</span>
+               <div className="sleek-card p-4 flex flex-col items-center text-center space-y-1">
+                  <span className="text-lg font-black text-brand-text">{discourseStats.masterySummary.known}</span>
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Ezagunak</span>
                </div>
-               <div className="bg-white border border-slate-100 rounded-2xl p-4 flex flex-col items-center text-center space-y-1 shadow-sm">
-                  <span className="text-lg font-black text-slate-800">{discourseStats.masterySummary.reviewing + discourseStats.masterySummary.learning}</span>
+               <div className="sleek-card p-4 flex flex-col items-center text-center space-y-1">
+                  <span className="text-lg font-black text-brand-text">{discourseStats.masterySummary.reviewing + discourseStats.masterySummary.learning}</span>
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Ikasten</span>
                </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-slate-100 p-4 space-y-3">
+            <div className="sleek-card p-4 space-y-3">
                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Funtzio diskurtsiboak ({Object.keys(discourseStats.byDiscursiveFunction).length})</h4>
                <div className="space-y-3 pt-2">
                    {Object.entries(discourseStats.byDiscursiveFunction).map(([func, stats]) => {
@@ -203,13 +204,13 @@ export default function StatsPage() {
                        const label = stats.accuracy >= 0.9 ? "Bikain" : stats.accuracy >= 0.8 ? "Ondo" : stats.accuracy >= 0.6 ? "Bidean" : "Indartu beharra";
                        
                        return (
-                           <div key={func} className={`flex items-center justify-between p-3 rounded-xl border ${statusBg}`}>
+                           <div key={func} className={`sleek-card flex items-center justify-between p-3 ${statusBg}`}>
                                <div className="flex flex-col">
                                     <span className="font-bold text-slate-700">{getDiscourseFunctionLabelEu(func)}</span>
                                    <span className={`text-[10px] font-black uppercase tracking-wider mt-0.5 ${statusColor}`}>{label}</span>
                                </div>
                                <div className="flex flex-col items-end">
-                                   <span className="font-black text-slate-800">{Math.round(stats.accuracy * 100)}%</span>
+                                   <span className="font-black text-brand-text">{Math.round(stats.accuracy * 100)}%</span>
                                    <span className="text-[10px] font-bold text-slate-500">{stats.correct}/{stats.total} zuzen</span>
                                </div>
                            </div>
@@ -226,8 +227,8 @@ export default function StatsPage() {
         <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest px-2">Mailak eta sinonimoak</h3>
         <div className="grid grid-cols-2 gap-3">
           {['B1', 'B2', 'C1', 'C2', 'Aditua'].map(level => (
-            <div key={level} className="bg-white border border-slate-100 rounded-2xl p-4 flex flex-col items-center text-center space-y-1 shadow-sm">
-                <span className="text-lg font-black text-slate-800">{synonymsPerLevel[level] || 0}</span>
+            <div key={level} className="sleek-card p-4 flex flex-col items-center text-center space-y-1">
+                <span className="text-lg font-black text-brand-text">{synonymsPerLevel[level] || 0}</span>
                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{level}</span>
             </div>
           ))}
@@ -238,21 +239,21 @@ export default function StatsPage() {
       <div className="space-y-4">
         <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest px-2">Saioak</h3>
         <div className="grid grid-cols-2 gap-4">
-          <div className="card p-5 bg-white space-y-3">
+          <div className="sleek-card p-5 space-y-3">
              <div className="flex items-center gap-3">
-                <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+                <div className="p-2 bg-emerald-50 text-emerald-700 rounded-none border-[3px] border-brand-border shadow-[3px_3px_0px_0px_#0f172a]">
                   <Target size={18} />
                 </div>
-                <span className="text-2xl font-black text-slate-800">{accuracy}%</span>
+                <span className="text-2xl font-black text-brand-text">{accuracy}%</span>
              </div>
              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Akurazia</span>
           </div>
-          <div className="card p-5 bg-white space-y-3">
+          <div className="sleek-card p-5 space-y-3">
              <div className="flex items-center gap-3">
-                <div className="p-2 bg-orange-50 text-orange-600 rounded-xl">
+                <div className="p-2 bg-orange-50 text-orange-700 rounded-none border-[3px] border-brand-border shadow-[3px_3px_0px_0px_#0f172a]">
                   <Star size={18} />
                 </div>
-                <span className="text-2xl font-black text-slate-800">{profile.stats.currentStreak}</span>
+                <span className="text-2xl font-black text-brand-text">{profile.stats.currentStreak}</span>
              </div>
              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bolada</span>
           </div>
@@ -263,7 +264,7 @@ export default function StatsPage() {
       <div className="pb-8">
         <button 
           onClick={() => setShowRequirements(!showRequirements)}
-          className="w-full card p-4 bg-slate-50 border-slate-100 flex items-center justify-between transition-all"
+          className="w-full sleek-card-interactive p-4 bg-slate-50 flex items-center justify-between"
         >
           <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Mailaz igotzeko baldintzak</span>
           <ChevronRight size={16} className={cn("text-slate-400 transition-all", showRequirements ? "rotate-90" : "")} />
@@ -275,7 +276,7 @@ export default function StatsPage() {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden bg-white border-x border-b border-slate-100 rounded-b-3xl px-6 py-4 divide-y divide-slate-50"
+              className="overflow-hidden bg-white border-[3px] border-t-0 border-brand-border px-6 py-4 divide-y divide-slate-100 shadow-[6px_6px_0px_0px_#0f172a]"
             >
               {progress.missingRequirements.map((req, i) => (
                 <div key={i} className="py-3 flex justify-between items-center text-sm">

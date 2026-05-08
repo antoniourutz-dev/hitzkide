@@ -32,6 +32,14 @@
   --color-info: #1151ff;
   --color-warning: #f59e0b;
   --color-warning-soft: #fffbeb;
+
+  /* Zinok-inspired neobrutal tokens */
+  --color-brand-primary: #3b82f6;
+  --color-brand-secondary: #f59e0b;
+  --color-brand-accent: #8b5cf6;
+  --color-brand-bg: #f8fafc;
+  --color-brand-text: #0f172a;
+  --color-brand-border: #0f172a;
   
   /* Typography Scale */
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
@@ -98,6 +106,13 @@
   /* Elevation Scale (flat design like Nike) */
   --shadow-hairline: inset 0 -1px 0 var(--color-hairline-soft);
   --shadow-card: 0 0 0 1px var(--color-hairline-soft);
+
+  /* Subtle skeleton pulse */
+  --animate-pulse-subtle: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
 }
 
 @layer base {
@@ -118,8 +133,8 @@
     font-size: var(--text-body-md);
     font-weight: var(--weight-regular);
     line-height: var(--leading-normal);
-    color: var(--color-ink);
-    background: var(--color-cloud);
+    color: var(--color-brand-text);
+    background: var(--color-brand-bg);
     text-rendering: optimizeLegibility;
   }
   
@@ -555,6 +570,32 @@
     font-weight: var(--weight-black);
     letter-spacing: var(--tracking-wider);
     border-radius: var(--radius-full);
+  }
+
+  /* === ZINOK (NEOBRUTAL) BUILDING BLOCKS === */
+  .sleek-card {
+    @apply bg-white rounded-none border-[3px] border-brand-border shadow-[8px_8px_0px_0px_#0f172a];
+  }
+
+  .sleek-card-interactive {
+    @apply bg-white rounded-none border-[3px] border-brand-border shadow-[10px_10px_0px_0px_#1e293b];
+    @apply cursor-pointer transition-all duration-200 hover:shadow-[4px_4px_0px_0px_#1e293b] hover:translate-x-[6px] hover:translate-y-[6px] active:scale-[0.98];
+  }
+
+  .sleek-btn-primary {
+    @apply px-6 py-3 md:px-10 md:py-4 bg-brand-primary text-white rounded-none font-black uppercase tracking-widest border-[3px] border-brand-border shadow-[6px_6px_0px_0px_#0f172a] transition-all duration-200 hover:shadow-[2px_2px_0px_0px_#0f172a] hover:translate-x-[4px] hover:translate-y-[4px] active:scale-95 flex items-center justify-center gap-3;
+  }
+
+  .sleek-btn-secondary {
+    @apply px-6 py-3 md:px-10 md:py-4 bg-white text-slate-800 rounded-none font-black uppercase tracking-widest border-[3px] border-brand-border shadow-[6px_6px_0px_0px_#0f172a] transition-all duration-200 hover:shadow-[2px_2px_0px_0px_#0f172a] hover:translate-x-[4px] hover:translate-y-[4px] active:scale-95 flex items-center justify-center gap-3;
+  }
+
+  .sleek-btn-option {
+    @apply p-4 md:p-6 rounded-none border-[3px] border-brand-border text-center font-black uppercase tracking-tight transition-all duration-200 disabled:pointer-events-none;
+  }
+
+  .skeleton {
+    @apply bg-slate-100 rounded-none animate-pulse-subtle;
   }
 }
 

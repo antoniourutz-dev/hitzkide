@@ -46,10 +46,11 @@ function ToastItem({ toast, onRemove }: { toast: ToastData; onRemove: (id: strin
       exit={{ opacity: 0, scale: 0.8 }}
       transition={{ type: 'spring', damping: 20, stiffness: 300 }}
       className={cn(
-        "px-6 py-3 rounded-2xl shadow-xl border font-black text-xs uppercase tracking-widest pointer-events-auto mb-2",
-        toast.type === 'achievement' ? "bg-emerald-500 text-white border-emerald-400" :
-        toast.type === 'success' ? "bg-white text-emerald-600 border-emerald-100" :
-        "bg-white text-slate-700 border-slate-100"
+        "px-6 py-3 rounded-none border-[3px] font-black text-xs uppercase tracking-widest pointer-events-auto mb-2 shadow-[6px_6px_0px_0px_#0f172a]",
+        toast.type === 'achievement' ? "bg-emerald-500 text-white border-emerald-700" :
+        toast.type === 'warning' ? "bg-amber-50 text-amber-900 border-brand-border" :
+        toast.type === 'success' ? "bg-white text-emerald-800 border-brand-border" :
+        "bg-white text-slate-900 border-brand-border"
       )}
       role="alert"
     >

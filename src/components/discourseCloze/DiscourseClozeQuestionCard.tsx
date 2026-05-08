@@ -12,22 +12,22 @@ export default function DiscourseClozeQuestionCard({ question, onAnswer, selecte
   const parts = question.sentence_with_blank_eu.split('______');
 
   return (
-    <div className="bg-white rounded-3xl p-6 border-2 border-slate-100 shadow-sm space-y-6">
-      <div className="flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-widest text-emerald-600">
-        <span className="bg-emerald-50 px-2 py-1 rounded-md">{question.level}</span>
+    <div className="sleek-card p-6 space-y-6">
+      <div className="flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-widest text-slate-700">
+        <span className="bg-emerald-50 px-2 py-1 rounded-none border-[3px] border-brand-border shadow-[2px_2px_0px_0px_#0f172a]">{question.level}</span>
         {question.discursive_function && (
-          <span className="bg-sky-50 text-sky-600 px-2 py-1 rounded-md">{question.discursive_function}</span>
+          <span className="bg-sky-50 text-sky-800 px-2 py-1 rounded-none border-[3px] border-brand-border shadow-[2px_2px_0px_0px_#0f172a]">{question.discursive_function}</span>
         )}
         {question.skill_focus && (
-          <span className="bg-slate-100 text-slate-500 px-2 py-1 rounded-md">{question.skill_focus}</span>
+          <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded-none border-[3px] border-brand-border shadow-[2px_2px_0px_0px_#0f172a]">{question.skill_focus}</span>
         )}
       </div>
 
-      <p className="text-xl font-medium text-slate-800 leading-relaxed">
+      <p className="text-xl font-medium text-slate-900 leading-relaxed">
         {parts[0]}
         <span className={cn(
-            "inline-block w-28 mx-2 border-b-2 text-center font-bold",
-            isAnswered ? "border-emerald-500 text-emerald-700" : "border-slate-300 text-slate-400"
+            "inline-block w-28 mx-2 border-b-[3px] text-center font-black",
+            isAnswered ? "border-brand-border text-brand-text" : "border-slate-300 text-slate-500"
         )}>
           {selectedAnswer || '...'}
         </span>
@@ -43,11 +43,11 @@ export default function DiscourseClozeQuestionCard({ question, onAnswer, selecte
             aria-pressed={selectedAnswer === option}
             aria-label={option}
             className={cn(
-              "w-full py-4 px-6 rounded-2xl text-left font-bold transition-all",
-              isAnswered && option === question.answer ? "bg-emerald-100 border-emerald-500 text-emerald-800" :
-              isAnswered && option === selectedAnswer && option !== question.answer ? "bg-red-100 border-red-500 text-red-800" :
-              selectedAnswer === option ? "bg-emerald-50 border-emerald-500 text-emerald-800" :
-              "bg-slate-50 hover:bg-slate-100 border-transparent text-slate-700"
+              "sleek-btn-option w-full flex items-center justify-between gap-4 text-left",
+              isAnswered && option === question.answer ? "bg-emerald-500 text-white border-emerald-700 shadow-[5px_5px_0px_0px_#047857]" :
+              isAnswered && option === selectedAnswer && option !== question.answer ? "bg-rose-500 text-white border-rose-700 shadow-[5px_5px_0px_0px_#be123c]" :
+              selectedAnswer === option ? "bg-emerald-50 text-emerald-900 border-emerald-700 shadow-[5px_5px_0px_0px_#047857]" :
+              "bg-white text-slate-900 border-brand-border shadow-[5px_5px_0px_0px_#0f172a] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[2px_2px_0px_0px_#0f172a]"
             )}
           >
             {option}
