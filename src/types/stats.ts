@@ -37,6 +37,12 @@ export interface PlayerProfile {
     globalAccuracy: number;
     currentStreak: number;
     bestStreak: number;
+    /** UTC calendar day (YYYY-MM-DD) — best consecutive 10/10 synonym sessions tracked below refer to this day only. */
+    perfectTenDailyUtcDate: string | null;
+    /** Best consecutive fully perfect 10-question synonym sessions achieved on perfectTenDailyUtcDate (daily high). */
+    perfectTenDailyBest: number;
+    /** Trailing consecutive perfect 10/10 synonym sessions within that UTC day (for merging + next session). */
+    perfectTenDailyCurrentRun: number;
     lastPlayedDate: string | null;
     dailySessionsCount: number;
   };

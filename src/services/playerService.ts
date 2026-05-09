@@ -3,6 +3,7 @@ import { PlayerProfile, UserLevel, MasteryStatus, ItemMastery, SessionResult, An
 import { ClozeSession } from '../types/cloze';
 import { DiscourseClozeSession, DiscourseClozeLevel } from '../types/discourseCloze';
 import { GameQuestion } from '../types/question';
+import { MAIN_SESSION_QUESTION_COUNT } from './questionService';
 import { observabilityService } from '../analytics/observabilityService';
 import { authService } from './authService';
 import { createClientId } from '../lib/id';
@@ -56,6 +57,9 @@ function createEmptyStats(): PlayerProfile['stats'] {
     globalAccuracy: 0,
     currentStreak: 0,
     bestStreak: 0,
+    perfectTenDailyUtcDate: null,
+    perfectTenDailyBest: 0,
+    perfectTenDailyCurrentRun: 0,
     lastPlayedDate: null,
     dailySessionsCount: 0
   };
@@ -222,6 +226,28 @@ function calculateBestStreak(sortedDates: string[]): number {
   return best;
 }
 
+function isSynonymPerfectTenSession(session: SessionResult): boolean {
+  return session.total === MAIN_SESSION_QUESTION_COUNT && session.score === session.total;
+}
+
+function computePerfectTenUtcDayBestAndRun(sessions: SessionResult[], utcDay: string): { dailyBest: number; trailingRun: number } {
+  const daySessions = sessions
+    .filter((session) => getSessionTimestamp(session).startsWith(utcDay))
+    .sort((a, b) => getSessionTimestamp(a).localeCompare(getSessionTimestamp(b)));
+
+  let run = 0;
+  let dailyBest = 0;
+  daySessions.forEach((session) => {
+    if (isSynonymPerfectTenSession(session)) {
+      run += 1;
+      dailyBest = Math.max(dailyBest, run);
+    } else {
+      run = 0;
+    }
+  });
+  return { dailyBest, trailingRun: run };
+}
+
 function calculateStatsFromSessions(sessions: SessionResult[]): PlayerProfile['stats'] {
   if (sessions.length === 0) {
     return createEmptyStats();
@@ -236,6 +262,9 @@ function calculateStatsFromSessions(sessions: SessionResult[]): PlayerProfile['s
     ? sessions.filter((session) => getSessionTimestamp(session).startsWith(lastPlayedDate)).length
     : 0;
 
+  const utcToday = new Date().toISOString().split('T')[0];
+  const perfectDaily = computePerfectTenUtcDayBestAndRun(sessions, utcToday);
+
   return {
     totalSessions,
     totalQuestions,
@@ -243,6 +272,9 @@ function calculateStatsFromSessions(sessions: SessionResult[]): PlayerProfile['s
     globalAccuracy: totalQuestions > 0 ? (totalCorrect / totalQuestions) * 100 : 0,
     currentStreak: calculateCurrentStreak(sortedDates),
     bestStreak: calculateBestStreak(sortedDates),
+    perfectTenDailyUtcDate: utcToday,
+    perfectTenDailyBest: perfectDaily.dailyBest,
+    perfectTenDailyCurrentRun: perfectDaily.trailingRun,
     lastPlayedDate,
     dailySessionsCount
   };
@@ -435,6 +467,32 @@ export const playerService = {
 
   getProfile(): PlayerProfile {
     return cloneProfile(currentProfile);
+  },
+
+  /** UTC calendar-day synonym streak for UI — 0 when lastPlayedDate is two or more days behind today (UTC date). */
+  getSynonymDailyStreakForDisplay(profile: PlayerProfile): number {
+    const { lastPlayedDate, currentStreak } = profile.stats;
+    if (!lastPlayedDate || currentStreak <= 0) return 0;
+    const today = new Date().toISOString().split('T')[0];
+    const lastMs = Date.parse(`${lastPlayedDate}T12:00:00.000Z`);
+    const todayMs = Date.parse(`${today}T12:00:00.000Z`);
+    if (!Number.isFinite(lastMs) || !Number.isFinite(todayMs)) return 0;
+    const gapDays = Math.floor((todayMs - lastMs) / (1000 * 60 * 60 * 24));
+    return gapDays >= 2 ? 0 : currentStreak;
+  },
+
+  /** Best consecutive 10/10 synonym streak for today (UTC calendar); 0 before first play after midnight UTC. */
+  getPerfectTenDailyDisplay(profile: PlayerProfile): number {
+    const today = new Date().toISOString().split('T')[0];
+    if (profile.stats.perfectTenDailyUtcDate !== today) return 0;
+    return profile.stats.perfectTenDailyBest ?? 0;
+  },
+
+  /** Current consecutive 10/10 synonym streak in progress today (UTC calendar). */
+  getPerfectTenDailyCurrentRunDisplay(profile: PlayerProfile): number {
+    const today = new Date().toISOString().split('T')[0];
+    if (profile.stats.perfectTenDailyUtcDate !== today) return 0;
+    return profile.stats.perfectTenDailyCurrentRun ?? 0;
   },
 
   resetProfile(syncStatus: PlayerProfile['syncStatus'] = 'auth_required') {
@@ -770,6 +828,25 @@ export const playerService = {
     }
     profile.stats.lastPlayedDate = today;
     profile.stats.bestStreak = Math.max(profile.stats.bestStreak, profile.stats.currentStreak);
+
+    const isPerfectTen =
+      score === questions.length && questions.length === MAIN_SESSION_QUESTION_COUNT;
+
+    if ((profile.stats.perfectTenDailyUtcDate ?? '') !== today) {
+      profile.stats.perfectTenDailyUtcDate = today;
+      profile.stats.perfectTenDailyBest = 0;
+      profile.stats.perfectTenDailyCurrentRun = 0;
+    }
+
+    if (isPerfectTen) {
+      profile.stats.perfectTenDailyCurrentRun = (profile.stats.perfectTenDailyCurrentRun ?? 0) + 1;
+      profile.stats.perfectTenDailyBest = Math.max(
+        profile.stats.perfectTenDailyBest ?? 0,
+        profile.stats.perfectTenDailyCurrentRun
+      );
+    } else {
+      profile.stats.perfectTenDailyCurrentRun = 0;
+    }
 
     // Update Mastery for each question
     questions.forEach((q) => {
@@ -1691,10 +1768,66 @@ export const playerService = {
       [...(normalizedCloud.discourseClozeSessions || []), ...(normalizedLocal.discourseClozeSessions || [])],
       buildDiscourseSessionKey
     ).sort((left, right) => getSessionTimestamp(left).localeCompare(getSessionTimestamp(right)));
-    const richerStats = normalizedLocal.stats.totalQuestions > normalizedCloud.stats.totalQuestions
-      ? normalizedLocal.stats
-      : normalizedCloud.stats;
-    const mergedStats = mergedSessions.length > 0 ? calculateStatsFromSessions(mergedSessions) : richerStats;
+    const richerStats = (() => {
+      const localStats = normalizedLocal.stats;
+      const cloudStats = normalizedCloud.stats;
+
+      // Prefer the stats from the most recently played day. TotalQuestions alone can pick a "richer"
+      // snapshot that is actually older, which would make streaks appear to shrink after sync.
+      const localDate = localStats.lastPlayedDate;
+      const cloudDate = cloudStats.lastPlayedDate;
+      if (localDate && !cloudDate) return localStats;
+      if (!localDate && cloudDate) return cloudStats;
+      if (localDate && cloudDate && localDate !== cloudDate) {
+        return localDate > cloudDate ? localStats : cloudStats;
+      }
+
+      // Same day (or both null): fallback to overall volume.
+      if (localStats.totalQuestions !== cloudStats.totalQuestions) {
+        return localStats.totalQuestions > cloudStats.totalQuestions ? localStats : cloudStats;
+      }
+
+      // Final tie-break: keep the higher streak numbers.
+      return localStats.currentStreak >= cloudStats.currentStreak ? localStats : cloudStats;
+    })();
+    const mergedStats = (() => {
+      if (mergedSessions.length === 0) return richerStats;
+
+      const candidate = calculateStatsFromSessions(mergedSessions);
+
+      // If sessions are missing reliable timestamps, the recalculation may undercount streaks.
+      // In that case, prefer the richerStats streak fields (which come from the more complete progress source).
+      if (richerStats.lastPlayedDate && !candidate.lastPlayedDate) {
+        return {
+          ...candidate,
+          lastPlayedDate: richerStats.lastPlayedDate,
+          currentStreak: richerStats.currentStreak,
+          bestStreak: Math.max(candidate.bestStreak, richerStats.bestStreak),
+          dailySessionsCount: richerStats.dailySessionsCount,
+        };
+      }
+
+      const sameLastPlayedDate =
+        Boolean(richerStats.lastPlayedDate) &&
+        richerStats.lastPlayedDate === candidate.lastPlayedDate;
+
+      const currentStreak =
+        sameLastPlayedDate && richerStats.currentStreak > candidate.currentStreak
+          ? richerStats.currentStreak
+          : candidate.currentStreak;
+
+      const dailySessionsCount =
+        sameLastPlayedDate && richerStats.dailySessionsCount > candidate.dailySessionsCount
+          ? richerStats.dailySessionsCount
+          : candidate.dailySessionsCount;
+
+      return {
+        ...candidate,
+        currentStreak,
+        bestStreak: Math.max(candidate.bestStreak, richerStats.bestStreak),
+        dailySessionsCount,
+      };
+    })();
     const localLastLevelUp = normalizedLocal.lastLevelUp;
     const cloudLastLevelUp = normalizedCloud.lastLevelUp;
     const latestLevelUp = !localLastLevelUp

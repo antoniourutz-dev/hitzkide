@@ -1,4 +1,4 @@
-import { Play, Heart, BookOpen, ChevronRight, RefreshCw, List } from 'lucide-react';
+import { Play, Heart, BookOpen, ChevronRight, RefreshCw, List, Flame, BadgeCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { fetchGameData, hasCachedGameData } from '../services/lexicalService';
 import { buildSessionQuestions } from '../services/questionService';
@@ -192,6 +192,8 @@ export default function HomePage({ onToast }: HomePageProps) {
   const reqMastery = progress.missingRequirements.find(r => r.label === 'Ezagutza')?.isMet;
   const knowledgeGap = reqQuestions && reqAccuracy && reqReview && !reqMastery;
   const synonymPlayDisabled = loading || (!isOnline && !hasOfflineData);
+  const dailyPlayStreak = playerService.getSynonymDailyStreakForDisplay(profile);
+  const perfectTenDailyBest = playerService.getPerfectTenDailyDisplay(profile);
   const userIdShort = user?.id ? `${user.id.slice(0, 8)}…${user.id.slice(-6)}` : '-';
   const cloudUserIdShort = profile.cloudUserId ? `${profile.cloudUserId.slice(0, 8)}…${profile.cloudUserId.slice(-6)}` : '-';
 
@@ -338,6 +340,31 @@ export default function HomePage({ onToast }: HomePageProps) {
           </p>
         </div>
       )}
+
+      <div className="grid grid-cols-2 gap-3 px-1">
+        <div className="sleek-card p-3 flex gap-3 items-center">
+          <div className="p-2 bg-orange-50 text-orange-700 rounded-none border-[3px] border-brand-border shadow-[3px_3px_0px_0px_#0f172a] shrink-0">
+            <Flame size={18} aria-hidden />
+          </div>
+          <div className="min-w-0 text-left space-y-0.5">
+            <p className="text-xl font-black text-brand-text leading-none">{dailyPlayStreak}</p>
+            <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-tight">
+              Egun
+            </p>
+          </div>
+        </div>
+        <div className="sleek-card p-3 flex gap-3 items-center">
+          <div className="p-2 bg-violet-50 text-violet-800 rounded-none border-[3px] border-brand-border shadow-[3px_3px_0px_0px_#0f172a] shrink-0">
+            <BadgeCheck size={18} aria-hidden />
+          </div>
+          <div className="min-w-0 text-left space-y-0.5">
+            <p className="text-xl font-black text-brand-text leading-none">{perfectTenDailyBest}</p>
+            <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-tight">
+              10/10 boladan
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* Progress Card */}
       <div className="sleek-card p-4 space-y-3">

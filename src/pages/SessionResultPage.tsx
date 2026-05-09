@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { RefreshCw, Home } from 'lucide-react';
+import { RefreshCw, Home, Flame, BadgeCheck } from 'lucide-react';
 import { SessionResult } from '../types/stats';
 import { playerService } from '../services/playerService';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/authService';
 import { fetchGameData, hasCachedGameData } from '../services/lexicalService';
-import { buildSessionQuestions } from '../services/questionService';
+import { buildSessionQuestions, MAIN_SESSION_QUESTION_COUNT } from '../services/questionService';
 import {
   SESSION_STORAGE_KEYS,
   readJsonFromSessionStorage,
@@ -14,6 +14,7 @@ import {
   writeJsonToSessionStorage,
 } from '../lib/storage';
 import { usePlayerProfile } from '../hooks/usePlayerProfile';
+import { cn } from '../lib/utils';
 
 interface SessionResultPageProps {
   onToast?: (message: string, type?: 'success' | 'info' | 'warning' | 'achievement') => void;
@@ -130,6 +131,11 @@ export default function SessionResultPage({ onToast: _onToast }: SessionResultPa
 
   const progress = playerService.calculateLevelProgress(profile);
   const percentage = Math.round((result.score / result.total) * 100);
+  const dailyPlayStreak = playerService.getSynonymDailyStreakForDisplay(profile);
+  const perfectTenDailyCurrentRun = playerService.getPerfectTenDailyCurrentRunDisplay(profile);
+  const perfectTenDailyBest = playerService.getPerfectTenDailyDisplay(profile);
+  const finishedPerfectTen =
+    result.score === result.total && result.total === MAIN_SESSION_QUESTION_COUNT;
 
   const getMessage = (s: number, t: number) => {
     const p = s / t;
@@ -212,6 +218,41 @@ export default function SessionResultPage({ onToast: _onToast }: SessionResultPa
           <h2 className="text-2xl font-black text-brand-text tracking-tight">{getMessage(result.score, result.total)}</h2>
           <p className="text-slate-700 font-medium">{result.score}/{result.total} zuzen</p>
           <p className="text-slate-600 text-xs font-medium">{getSubMessage(result.mode, result.total)}</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 pt-2 max-w-md mx-auto w-full px-2">
+          <div className="sleek-card p-3 flex gap-3 items-center text-left">
+            <div className="p-2 bg-orange-50 text-orange-700 rounded-none border-[3px] border-brand-border shadow-[3px_3px_0px_0px_#0f172a] shrink-0">
+              <Flame size={18} aria-hidden />
+            </div>
+            <div className="min-w-0 space-y-0.5">
+              <p className="text-lg font-black text-brand-text leading-none">{dailyPlayStreak}</p>
+              <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest leading-tight">
+                Egun
+              </p>
+            </div>
+          </div>
+          <div className="sleek-card p-3 flex gap-3 items-center text-left">
+            <div
+              className={cn(
+                'p-2 rounded-none border-[3px] border-brand-border shadow-[3px_3px_0px_0px_#0f172a] shrink-0',
+                finishedPerfectTen ? 'bg-emerald-50 text-emerald-800' : 'bg-violet-50 text-violet-800'
+              )}
+            >
+              <BadgeCheck size={18} aria-hidden />
+            </div>
+            <div className="min-w-0 space-y-0.5">
+              <p className="text-lg font-black text-brand-text leading-none">
+                {perfectTenDailyCurrentRun}{' '}
+                <span className="text-[10px] font-black text-slate-500">
+                  (mejor: {perfectTenDailyBest})
+                </span>
+              </p>
+              <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest leading-tight">
+                10/10 boladan
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 

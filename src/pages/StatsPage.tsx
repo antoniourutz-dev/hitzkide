@@ -253,7 +253,9 @@ export default function StatsPage() {
                 <div className="p-2 bg-orange-50 text-orange-700 rounded-none border-[3px] border-brand-border shadow-[3px_3px_0px_0px_#0f172a]">
                   <Star size={18} />
                 </div>
-                <span className="text-2xl font-black text-brand-text">{profile.stats.currentStreak}</span>
+                <span className="text-2xl font-black text-brand-text">
+                  {playerService.getSynonymDailyStreakForDisplay(profile)}
+                </span>
              </div>
              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bolada</span>
           </div>
